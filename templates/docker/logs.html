@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Logs: {{ cid[:12] }}{% endblock %}
+{% block content %}
+<h1>:: Logs do container ::
+  <span style="float:right;font-size:11px;font-weight:normal">
+    <a href="{{ url_for('docker.index') }}" class="btn-3d">&laquo; voltar</a>
+  </span>
+</h1>
+
+<p>Container: <code>{{ cid }}</code> &nbsp;|&nbsp;
+   Mostrando ultimas <b>{{ tail }}</b> linhas.
+   <a href="?tail=50">50</a> |
+   <a href="?tail=200">200</a> |
+   <a href="?tail=1000">1000</a> |
+   <a href="?tail=5000">5000</a>
+   &nbsp;|&nbsp;
+   <a href="?tail={{ tail }}&raw=1" target="_blank">[raw]</a>
+   <button class="btn-3d" onclick="toggleAuto()" id="autoBtn">auto-refresh: OFF</button>
+</p>
+
+<pre id="logBox"
+     style="background:#000;color:#0f0;font-family:'Courier New',monospace;
+            font-size:11px;padding:8px;border:2px inset #555;height:600px;
+            overflow:auto;white-space:pre-wrap;word-break:break-all">{{ text }}</pre>
+
+<script>
+var auto = false;
+var timer = null;
+function toggleAuto(){
+  auto = !auto;
+  document.getElementById('autoBtn').textContent = 'auto-refresh: ' + (auto ? 'ON (3s)' : 'OFF');
+  if(auto){ tick(); }
+  else { clearTimeout(timer); }
+}
+function tick(){
+  fetch('?tail={{ tail }}&raw=1', {cache:'no-store'})
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var box = document.getElementById('logBox');
+      var atBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 50;
+      box.textContent = t;
+      if(atBottom) box.scrollTop = box.scrollHeight;
+    })
+    .catch(function(){});
+  timer = setTimeout(tick, 3000);
+}
+// scroll inicial pro fim
+document.getElementById('logBox').scrollTop = 999999;
+</script>
+
+{% endblock %}

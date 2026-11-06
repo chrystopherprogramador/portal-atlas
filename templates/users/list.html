@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock %}
+{% block content %}
+<h1>:: Usuarios ::</h1>
+<p><a class="btn-3d" href="{{ url_for('users.new') }}">+ Novo usuario</a></p>
+
+<div class="panel">
+  <div class="panel-title">:: Lista ({{ users|length }}) ::</div>
+  <div class="panel-body">
+    <table class="grid" width="100%">
+      <tr class="th"><th>Login</th><th align="right">Acoes</th></tr>
+      {% for u in users %}
+      <tr>
+        <td><a href="{{ url_for('users.show', login=u) }}">{{ u }}</a></td>
+        <td align="right">
+          <a href="{{ url_for('users.show', login=u) }}">ver</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

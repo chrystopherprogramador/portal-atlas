@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Papel de Parede (GPO){% endblock %}
+{% block content %}
+
+<h1>:: Papel de Parede do Dominio ::</h1>
+
+<p><i>Gerencia uma GPO ligada na raiz do dominio que aplica a imagem como papel
+de parede em todos os micros logados em <code>{{ DOMAIN }}</code>. A imagem fica
+em um share oculto somente-leitura.</i></p>
+
+{% if not info or not info.GPO_GUID %}
+<div class="panel" style="max-width:640px">
+  <div class="panel-title">:: GPO ainda nao foi criada ::</div>
+  <div class="panel-body">
+    <p>Clique abaixo para criar a GPO no AD, o share <code>\\atlas\Wallpaper$</code>
+       e linkar na raiz do dominio.</p>
+    <form method="post" action="{{ url_for('wallpaper.init') }}">
+      <button type="submit" class="btn-3d">Inicializar GPO de papel de parede</button>
+    </form>
+  </div>
+</div>
+{% else %}
+
+<table width="100%" cellpadding="0" cellspacing="8"><tr>
+
+<td valign="top" width="55%">
+
+  <div class="panel">
+    <div class="panel-title">:: Monitor :: pre-visualizacao ::</div>
+    <div class="panel-body" align="center">
+
+      <div class="crt-stand-wrap">
+        <div class="crt-monitor">
+          <div class="crt-bezel">
+            <div class="crt-screen">
+              {% if info.IMAGE_EXISTS == '1' %}
+                <img src="{{ url_for('wallpaper.preview') }}?v={{ info.GPT_VERSION }}"
+                     class="crt-img crt-img-{{ info.STYLE or '2' }}"
+                     alt="papel de parede">
+              {% else %}
+                <div class="crt-noimg">
+                  <div class="crt-bsod">
+                    [ NO SIGNAL ]<br><br>
+                    <small>Sem imagem definida.<br>
+                    Envie um arquivo abaixo para visualizar aqui.</small>
+                  </div>
+                </div>
+              {% endif %}
+              <div class="crt-scan"></div>
+            </div>
+            <div class="crt-brand">A T L A S &nbsp;-&nbsp; SVGA</div>
+            <div class="crt-led" title="POWER"></div>
+            <div class="crt-btn crt-btn-1"></div>
+            <div class="crt-btn crt-btn-2"></div>
+            <div class="crt-btn crt-btn-3"></div>
+          </div>
+          <div class="crt-neck"></div>
+          <div class="crt-base"></div>
+        </div>
+        {% if info.IMAGE_EXISTS == '1' %}
+        <small style="display:block;margin-top:6px;color:#444">
+          {{ info.IMAGE_SIZE }} bytes &middot; {{ info.IMAGE_MTIME }} &middot;
+          estilo: <b>{{ styles.get(info.STYLE, info.STYLE) }}</b>
+        </small>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+
+  <br>
+
+  <div class="panel">
+    <div class="panel-title">:: Trocar imagem ::</div>
+    <div class="panel-body">
+      <form method="post" enctype="multipart/form-data" action="{{ url_for('wallpaper.upload') }}">
+        <p>Aceita JPG/PNG/BMP. Sera redimensionada para no maximo 1920x1200 e
+           convertida para JPG otimizado.</p>
+        <input type="file" name="image" accept="image/*" required>
+        <br><br>
+        <button type="submit" class="btn-3d">Enviar e aplicar</button>
+      </form>
+    </div>
+  </div>
+
+</td>
+
+<td valign="top" width="45%">
+
+  <div class="panel">
+    <div class="panel-title">:: Estado ::</div>
+    <div class="panel-body">
+      <table cellpadding="3" width="100%">
+        <tr><td><b>GPO:</b></td><td><small>{{ info.GPO_NAME }}</small></td></tr>
+        <tr><td><b>GUID:</b></td><td><small><code>{{ info.GPO_GUID }}</code></small></td></tr>
+        <tr><td><b>UNC:</b></td><td><small><code>{{ info.UNC }}</code></small></td></tr>
+        <tr><td><b>Estilo:</b></td><td>{{ styles.get(info.STYLE, info.STYLE) }}</td></tr>
+        <tr><td><b>Versao GPT:</b></td><td>{{ info.GPT_VERSION or 0 }}</td></tr>
+        <tr><td><b>Linkada:</b></td><td>
+          {% if info.LINKED == '1' %}<b class="ok">&#9679; sim</b>
+          {% else %}<b class="bad">&#9679; nao</b>{% endif %}
+        </td></tr>
+      </table>
+    </div>
+  </div>
+
+  <br>
+
+  <div class="panel">
+    <div class="panel-title">:: Estilo de exibicao ::</div>
+    <div class="panel-body">
+      <form method="post" action="{{ url_for('wallpaper.style') }}">
+        <select name="style">
+          {% for code, label in styles.items() %}
+            <option value="{{ code }}" {% if info.STYLE == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn-3d">aplicar estilo</button>
+      </form>
+    </div>
+  </div>
+
+  <br>
+
+  <div class="panel">
+    <div class="panel-title">:: Avancado ::</div>
+    <div class="panel-body">
+      <form method="post" action="{{ url_for('wallpaper.init') }}" style="display:inline">
+        <button type="submit" class="btn-3d">re-aplicar GPO</button>
+      </form>
+      <form method="post" action="{{ url_for('wallpaper.disable') }}" style="display:inline"
+            onsubmit="return confirm('Remover o link da GPO no dominio? A imagem nao sera mais aplicada.');">
+        <button type="submit" class="btn-3d bad">desabilitar (remover link)</button>
+      </form>
+      <br><br>
+      <small>* Clientes Windows recebem a nova imagem no proximo logon ou em
+      ate ~90 minutos (intervalo padrao de gpupdate). Para forcar agora, no
+      micro: <code>gpupdate /force</code> + logoff/logon.</small>
+    </div>
+  </div>
+
+</td>
+
+</tr></table>
+
+{% endif %}
+
+{% endblock %}

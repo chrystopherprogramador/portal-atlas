@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}RustDesk Server{% endblock %}
+{% block content %}
+<h1>:: RustDesk Server ::
+  <span style="float:right;font-size:11px;font-weight:normal">
+    <form method="post" action="{{ url_for('rustdesk.restart') }}" style="display:inline"
+          onsubmit="return confirm('Reiniciar containers hbbs/hbbr?');">
+      <button type="submit" class="btn-3d">reiniciar servidor</button>
+    </form>
+  </span>
+</h1>
+
+<p><i>Servidor proprio de acesso remoto. Os agentes (clientes) usam o instalador pre-configurado abaixo
+&mdash; nao precisa configurar nada na maquina do usuario.</i></p>
+
+<table width="100%" cellpadding="0" cellspacing="0"><tr>
+
+<td valign="top" style="width:55%;padding-right:8px">
+
+<div class="panel">
+<div class="panel-title">:: Configuracao do servidor (publico) ::</div>
+<div class="panel-body">
+  <form method="post" action="{{ url_for('rustdesk.save') }}">
+    <table cellpadding="4">
+      <tr>
+        <td><b>IP/dominio publico:</b></td>
+        <td><input name="public_host" size="32" value="{{ settings.public_host or '' }}"
+                   placeholder="ex: rustdesk.minhaempresa.com.br ou 200.x.x.x"
+                   pattern="[a-zA-Z0-9.\-_:]{1,253}" required>
+            <small>(usado pelo cliente para conectar)</small></td>
+      </tr>
+      <tr>
+        <td><b>Relay (opcional):</b></td>
+        <td><input name="relay_host" size="32" value="{{ settings.relay_host or '' }}"
+                   placeholder="(vazio = usa o mesmo do public_host)">
+            <small>somente se hbbr estiver em outro host</small></td>
+      </tr>
+      <tr>
+        <td><b>API (opcional):</b></td>
+        <td><input name="api_host" size="32" value="{{ settings.api_host or '' }}"
+                   placeholder="(vazio)">
+            <small>so se voce tiver um API server (Pro)</small></td>
+      </tr>
+      <tr>
+        <td colspan="2"><br>
+          <button type="submit" class="btn-3d">salvar</button>
+          &nbsp;<small>* essas portas precisam estar liberadas no firewall: <b>21115/tcp 21116/tcp+udp 21117/tcp 21118/tcp 21119/tcp</b></small>
+        </td>
+      </tr>
+    </table>
+  </form>
+</div>
+</div>
+
+<br>
+
+<div class="panel">
+<div class="panel-title">:: Credenciais (chave publica do servidor) ::</div>
+<div class="panel-body">
+{% if pubkey %}
+  <p><small>Esta chave e exigida pelo cliente RustDesk para conectar com seguranca.
+  Ela ja vai embutida no instalador abaixo &mdash; voce nao precisa copiar/colar.</small></p>
+  <table cellpadding="3">
+    <tr><td><b>Chave publica:</b></td>
+        <td><input type="text" readonly value="{{ pubkey }}" size="60"
+                   style="font-family:'Courier New',monospace;font-size:11px"
+                   onclick="this.select()"></td></tr>
+    <tr><td><b>Servidor:</b></td>
+        <td><code>{{ settings.public_host or '<preencha acima>' }}</code></td></tr>
+    <tr><td><b>Portas:</b></td>
+        <td><code>21115/21116/21117/21118/21119</code></td></tr>
+  </table>
+{% else %}
+  <p class="bad">Chave ainda nao foi gerada pelo hbbs. Reinicie o servidor (botao no topo) e aguarde 5s.</p>
+{% endif %}
+</div>
+</div>
+
+<br>
+
+<div class="panel">
+<div class="panel-title">:: Instalador pre-configurado para Windows ::</div>
+<div class="panel-body">
+
+{% if not installer %}
+  <p class="bad">O instalador oficial (.exe) ainda nao foi baixado para o servidor.</p>
+  <form method="post" action="{{ url_for('rustdesk.fetch') }}">
+    <button type="submit" class="btn-3d">baixar instalador agora (~30 MB)</button>
+    <small>baixa rustdesk-1.3.x-x86_64.exe do GitHub e guarda no servidor</small>
+  </form>
+{% else %}
+  <p>Instalador disponivel no servidor: <b>{{ '%.1f'|format(installer_size/1024/1024) }} MB</b>.
+     Existem duas formas de instalar nas maquinas dos usuarios:</p>
+
+  <table class="grid" width="100%" cellpadding="6">
+    <tr class="th"><th>Opcao</th><th>Como funciona</th><th>Arquivo</th></tr>
+    <tr>
+      <td><b>1) Instalador renomeado</b><br><small>(rapido)</small></td>
+      <td><small>O .exe vem com o nome <code>rustdesk-host=...,key=...exe</code>.
+          O cliente le o proprio nome do arquivo no primeiro start e ja sabe o servidor + chave.
+          Basta o usuario baixar e executar.</small></td>
+      <td>
+        {% if settings.public_host %}
+          <a href="{{ url_for('rustdesk.download_installer') }}" class="btn-3d">baixar .exe</a>
+        {% else %}
+          <i>preencha o host publico</i>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td><b>2) Script .bat</b><br><small>(deploy em massa)</small></td>
+      <td><small>Um <code>.bat</code> que baixa o RustDesk do GitHub, instala silencioso e
+          grava o <code>RustDesk2.toml</code> em <code>%APPDATA%\RustDesk\config\</code> e em
+          <code>C:\ProgramData\RustDesk\config\</code> (vale para todos os usuarios da maquina).
+          Ideal para enviar via GPO ou SCCM.</small></td>
+      <td>
+        {% if settings.public_host %}
+          <a href="{{ url_for('rustdesk.install_bat') }}" class="btn-3d">baixar .bat</a>
+        {% else %}
+          <i>preencha o host publico</i>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td><b>3) .exe original</b></td>
+      <td><small>O usuario configura manualmente em Settings &raquo; Network.</small></td>
+      <td>
+        <form method="post" action="{{ url_for('rustdesk.fetch') }}" style="display:inline">
+          <button type="submit" class="btn-3d">re-baixar do GitHub</button>
+        </form>
+      </td>
+    </tr>
+  </table>
+{% endif %}
+
+</div>
+</div>
+
+</td>
+
+<td valign="top" style="width:45%">
+
+<div class="panel">
+<div class="panel-title">:: Containers ::</div>
+<div class="panel-body">
+{% if status %}
+<table class="grid" width="100%">
+  <tr class="th"><th>Container</th><th>Estado</th><th>Portas</th></tr>
+  {% for c in status %}
+  <tr>
+    <td><b>{{ c.name }}</b></td>
+    <td>
+      {% if 'Up' in c.status %}<b class="ok">&#9679; {{ c.status }}</b>
+      {% else %}<b class="bad">&#9679; {{ c.status }}</b>{% endif %}
+    </td>
+    <td><small>{{ c.ports }}</small></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="bad">Nenhum container hbbs/hbbr rodando.</p>
+{% endif %}
+</div>
+</div>
+
+<br>
+
+<div class="panel">
+<div class="panel-title">:: Como funciona ::</div>
+<div class="panel-body">
+<small>
+<ol style="margin:0;padding-left:18px">
+  <li>O servidor roda dois containers Docker:
+      <ul>
+        <li><b>hbbs</b> &mdash; rendezvous (encontro) e sinalizacao</li>
+        <li><b>hbbr</b> &mdash; relay (so usado quando NAT impede P2P)</li>
+      </ul>
+  </li>
+  <li>Ao subir, o hbbs gera o par de chaves <code>id_ed25519</code> &raquo; <code>id_ed25519.pub</code>
+      em <code>/var/lib/rustdesk-data/</code>. A publica fica visivel ao lado.</li>
+  <li>Voce informa aqui o <b>IP/dominio publico</b> do servidor (porta 21115/21116/21117 abertas
+      no firewall externo).</li>
+  <li>O painel gera um instalador <code>.exe</code> ou um <code>.bat</code> que ja vem com:
+      <ul>
+        <li>endereco do seu servidor</li>
+        <li>chave publica</li>
+      </ul>
+  </li>
+  <li>Voce distribui o instalador para os usuarios &mdash; eles nao precisam configurar nada.</li>
+</ol>
+<br>
+<b>NAT/Firewall externo:</b> abra TCP 21115, TCP+UDP 21116, TCP 21117, TCP 21118, TCP 21119
+do seu IP publico para o IP interno <code>172.16.3.100</code>.
+</small>
+</div>
+</div>
+
+</td>
+
+</tr></table>
+
+{% endblock %}

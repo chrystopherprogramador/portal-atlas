@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Servidor FTP{% endblock %}
+{% block content %}
+
+<h1>:: Servidor FTP ::
+  <span style="float:right;font-size:11px;font-weight:normal">
+    {% if status == 'active' %}
+      <b class="ok">&#9679; vsftpd ativo</b>
+    {% else %}
+      <b class="bad">&#9679; {{ status }}</b>
+    {% endif %}
+    &nbsp;
+    <form method="post" action="{{ url_for('ftp.restart') }}" style="display:inline"
+          onsubmit="return confirm('Reiniciar vsftpd?');">
+      <button type="submit" class="btn-3d">reiniciar</button>
+    </form>
+  </span>
+</h1>
+
+<p><i>Acesso FTP/FTPS - porta 21 + passivo 30000-30100. Cada usuario fica preso na propria pasta
+em <code>/srv/ftp/&lt;login&gt;/files</code>.</i></p>
+
+<div class="panel" style="max-width:720px">
+<div class="panel-title">:: Novo usuario FTP ::</div>
+<div class="panel-body">
+  <form method="post" action="{{ url_for('ftp.new') }}">
+    <table cellpadding="4">
+      <tr>
+        <td><b>Login:</b></td>
+        <td><input name="user" size="20" maxlength="32" required pattern="[a-z_][a-z0-9_-]{1,31}">
+            <small>(minusculas, sem espaco, ex: parceiro_ab)</small></td>
+      </tr>
+      <tr>
+        <td><b>Senha:</b></td>
+        <td><input name="password" type="text" size="20" minlength="6" required>
+            <small>(min 6 caracteres)</small></td>
+      </tr>
+      <tr>
+        <td colspan="2"><br><button type="submit" class="btn-3d">Criar usuario FTP</button></td>
+      </tr>
+    </table>
+  </form>
+  <br><small>* O usuario nao tera shell de login; somente FTP/FTPS.<br>
+  * Pasta gravavel: <code>/srv/ftp/&lt;login&gt;/files</code>.</small>
+</div>
+</div>
+
+<br>
+
+<div class="panel">
+<div class="panel-title">:: Usuarios FTP ({{ users|length }}) ::</div>
+<div class="panel-body">
+{% if users %}
+<table class="grid" width="100%">
+  <tr class="th">
+    <th>Login</th>
+    <th>Pasta</th>
+    <th>Tamanho</th>
+    <th>Ultimo login</th>
+    <th>Status</th>
+    <th>Acoes</th>
+  </tr>
+  {% for u in users %}
+  <tr>
+    <td><b>{{ u.user }}</b></td>
+    <td><code>{{ u.home }}</code></td>
+    <td align="right"><small>{{ u.size_h }}</small></td>
+    <td><small>{{ u.last_login }}</small></td>
+    <td align="center">
+      {% if u.locked %}<b class="bad">&#9679; bloq</b>{% else %}<b class="ok">&#9679; ativo</b>{% endif %}
+    </td>
+    <td>
+      <form method="post" action="{{ url_for('ftp.passwd', user=u.user) }}" style="display:inline">
+        <input name="password" size="10" placeholder="nova senha" minlength="6" required>
+        <button type="submit" class="btn-3d">trocar senha</button>
+      </form>
+      {% if u.locked %}
+      <form method="post" action="{{ url_for('ftp.unlock', user=u.user) }}" style="display:inline">
+        <button type="submit" class="btn-3d">desbloquear</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('ftp.lock', user=u.user) }}" style="display:inline">
+        <button type="submit" class="btn-3d">bloquear</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('ftp.delete', user=u.user) }}" style="display:inline"
+            onsubmit="return confirm('Remover usuario FTP {{ u.user }} e seus arquivos?');">
+        <button type="submit" class="btn-3d bad">remover</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p><i>Nenhum usuario FTP cadastrado ainda.</i></p>
+{% endif %}
+</div>
+</div>
+
+<br>
+
+<div class="panel" style="max-width:720px">
+<div class="panel-title">:: Conexoes ativas ({{ sessions|length }}) ::</div>
+<div class="panel-body">
+{% if sessions %}
+<table class="grid" width="100%">
+  <tr class="th"><th>Cliente (peer)</th><th>Servidor (local)</th></tr>
+  {% for s in sessions %}
+  <tr><td><code>{{ s.peer }}</code></td><td><code>{{ s.local }}</code></td></tr>
+  {% endfor %}
+</table>
+{% else %}
+<p><i>Nenhuma conexao no momento.</i></p>
+{% endif %}
+</div>
+</div>
+
+{% endblock %}

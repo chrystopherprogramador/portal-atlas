@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Novo usuario{% endblock %}
+{% block content %}
+<h1>:: Novo usuario ::</h1>
+
+<div class="panel" style="max-width:600px">
+<div class="panel-title">:: Dados ::</div>
+<div class="panel-body">
+<form method="post">
+<table cellpadding="5">
+<tr><td><b>Login:</b></td><td><input name="login" size="30" required></td></tr>
+<tr><td><b>Nome completo:</b></td><td><input name="fullname" size="40" required></td></tr>
+<tr><td><b>OU:</b></td><td>
+  <select name="ou">
+    {% for o in ous %}<option value="{{ o|replace('OU=','') }}">{{ o }}</option>{% endfor %}
+  </select>
+</td></tr>
+<tr><td><b>Senha inicial:</b></td><td><input name="password" size="30" value="Texasco@2026"></td></tr>
+<tr><td colspan="2"><br>
+  <button type="submit" class="btn-3d">Criar &raquo;</button>
+  <a class="btn-3d" href="{{ url_for('users.index') }}">Cancelar</a>
+</td></tr>
+</table>
+</form>
+<br><small>* Senha deve ser trocada no primeiro login. Um peer VPN sera criado automaticamente.</small>
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: portal-webhook
+  group_by: ['alertname', 'component']
+  group_wait: 30s
+  group_interval: 2m
+  repeat_interval: 3h
+  routes:
+    - matchers: [severity="critical"]
+      receiver: portal-webhook
+      group_wait: 10s
+      repeat_interval: 1h
+
+receivers:
+  - name: portal-webhook
+    webhook_configs:
+      - url: 'http://127.0.0.1:8080/monitoring/api/alerts/webhook'
+        send_resolved: true
+
+inhibit_rules:
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: ['alertname', 'instance']

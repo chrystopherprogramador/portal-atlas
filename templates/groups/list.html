@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Grupos{% endblock %}
+{% block content %}
+<h1>:: Grupos ::</h1>
+
+<div class="panel" style="max-width:500px">
+<div class="panel-title">:: Novo ::</div>
+<div class="panel-body">
+  <form method="post" action="{{ url_for('groups.new') }}">
+    <input name="name" size="30" placeholder="Nome do grupo" required>
+    <button class="btn-3d" type="submit">Criar</button>
+  </form>
+</div>
+</div>
+
+<br>
+<div class="panel">
+<div class="panel-title">:: Lista ({{ groups|length }}) ::</div>
+<div class="panel-body">
+<table class="grid" width="100%">
+  <tr class="th"><th>Nome</th><th align="right">Acoes</th></tr>
+  {% for g in groups %}
+  <tr>
+    <td><a href="{{ url_for('groups.show', name=g) }}">{{ g }}</a></td>
+    <td align="right">
+      <form method="post" action="{{ url_for('groups.delete', name=g) }}"
+            style="display:inline" onsubmit="return confirm('Excluir {{ g }}?');">
+        <button class="btn-3d bad" type="submit">excluir</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+</div>
+{% endblock %}

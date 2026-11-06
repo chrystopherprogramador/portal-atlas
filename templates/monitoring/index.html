@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Monitoramento :: ATLAS{% endblock %}
+{% block content %}
+<div class="panel">
+  <div class="panel-title">:: Monitoramento ::</div>
+  <div class="panel-body">
+
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+      <div>
+        <b>Alertas:</b>
+        <span class="badge badge-{{ summary.status_color }}">{{ summary.status_label|upper }}</span>
+      </div>
+      <div>
+        <b>Prometheus:</b>
+        <span class="badge badge-{{ 'green' if summary.prometheus_up else 'red' }}">
+          {{ 'UP' if summary.prometheus_up else 'DOWN' }}
+        </span>
+      </div>
+      <div>
+        <b>Alertmanager:</b>
+        <span class="badge badge-{{ 'green' if summary.alertmanager_up else 'red' }}">
+          {{ 'UP' if summary.alertmanager_up else 'DOWN' }}
+        </span>
+      </div>
+      <div style="margin-left:auto">
+        <a class="btn" href="/grafana/" target="_blank">&raquo; Grafana</a>
+        <a class="btn" href="/prometheus/" target="_blank">&raquo; Prometheus</a>
+        <a class="btn" href="/alertmanager/" target="_blank">&raquo; Alertmanager</a>
+      </div>
+    </div>
+
+    <h3>:: Alertas ativos ({{ alerts|length }}) ::</h3>
+    {% if alerts %}
+    <table class="tbl">
+      <tr><th>Sev</th><th>Alerta</th><th>Componente</th><th>Desde</th><th>Resumo</th></tr>
+      {% for a in alerts %}
+      <tr>
+        <td><span class="badge badge-{{ 'red' if a.severity=='critical' else ('yel' if a.severity=='warning' else 'blue') }}">{{ a.severity|upper }}</span></td>
+        <td><b>{{ a.alertname }}</b></td>
+        <td>{{ a.component }} {% if a.instance %}<small>/ {{ a.instance }}</small>{% endif %}</td>
+        <td><small>{{ a.startsAt|replace('T',' ')|truncate(19,True,'') }}</small></td>
+        <td>{{ a.summary }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p style="color:#2a2"><b>Nenhum alerta ativo.</b> Sistema saudavel.</p>
+    {% endif %}
+
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">:: Dashboard Grafana ::</div>
+  <div class="panel-body" style="padding:0">
+    <iframe src="/grafana/d/atlas-overview/atlas-overview?orgId=1&kiosk=tv&refresh=30s"
+            style="width:100%; height:820px; border:0; background:#222"
+            title="ATLAS Overview"></iframe>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">:: Targets Prometheus ::</div>
+  <div class="panel-body">
+    <table class="tbl">
+      <tr><th>Job</th><th>Instance</th><th>Saude</th><th>Ultimo scrape</th><th>Erro</th></tr>
+      {% for t in targets %}
+      <tr>
+        <td>{{ t.job }}</td>
+        <td>{{ t.instance }}</td>
+        <td><span class="badge badge-{{ 'green' if t.health=='up' else 'red' }}">{{ t.health|upper }}</span></td>
+        <td><small>{{ (t.lastScrape or '')|truncate(19,True,'') }}</small></td>
+        <td><small style="color:#a00">{{ t.lastError|truncate(80) }}</small></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">:: Historico recente de alertas ::</div>
+  <div class="panel-body">
+    {% if history %}
+    <table class="tbl">
+      <tr><th>Quando</th><th>Status</th><th>Sev</th><th>Alerta</th><th>Instance</th></tr>
+      {% for h in history[:30] %}
+      <tr>
+        <td><small>{{ (h.received or '')|truncate(19,True,'') }}</small></td>
+        <td><span class="badge badge-{{ 'red' if h.status=='firing' else 'green' }}">{{ h.status|upper }}</span></td>
+        <td>{{ h.severity }}</td>
+        <td>{{ h.alertname }}</td>
+        <td><small>{{ h.instance }}</small></td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p><i>Sem historico ainda.</i></p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function(){
+  // Auto-refresh resumo cada 30s
+  async function refresh(){
+    try {
+      const r = await fetch('/monitoring/api/summary');
+      const d = await r.json();
+      // Se mudou o numero de alertas, recarrega
+      if (window.__atlas_prev_active !== undefined && window.__atlas_prev_active !== d.active) {
+        location.reload(); return;
+      }
+      window.__atlas_prev_active = d.active;
+    } catch(e){}
+  }
+  setInterval(refresh, 30000);
+})();
+</script>
+{% endblock %}

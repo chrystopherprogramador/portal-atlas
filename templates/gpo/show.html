@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block title %}GPO :: {{ info.get('display name', guid) }}{% endblock %}
+{% block content %}
+
+<p><a href="{{ url_for('gpo.index') }}">&laquo; voltar para GPOs</a></p>
+
+<h1>:: {{ info.get('display name', '?') }} ::</h1>
+<p><code>{{ guid }}</code></p>
+
+{% if not containers %}
+<div style="border:2px solid #c00; background:#ffe6e6; padding:8px 12px; margin:6px 0 12px 0; font-family:Tahoma,Verdana,sans-serif">
+  <b style="color:#c00">&#9888; Aviso:</b>
+  esta GPO <b>nao esta vinculada a nenhum container</b> (dominio/OU).
+  Enquanto nao houver um link, <u>nenhum cliente Windows aplicara as politicas</u>
+  desta GPO &mdash; mesmo que o catalogo abaixo mostre itens configurados.
+  Use o painel <i>:: Adicionar link ::</i> a direita para vincular esta GPO
+  ao dominio ou a uma OU.
+</div>
+{% endif %}
+
+<table width="100%" cellpadding="0" cellspacing="8"><tr>
+
+<td valign="top" width="55%">
+
+<div class="panel">
+  <div class="panel-title">:: Detalhes ::</div>
+  <div class="panel-body">
+    <table cellpadding="3">
+      {% for k, v in info.items() %}
+        <tr><td><b>{{ k }}:</b></td><td><small>{{ v }}</small></td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<br>
+
+<div class="panel">
+  <div class="panel-title">:: Estado das politicas ::</div>
+  <div class="panel-body">
+    <p><i>Habilita/desabilita o lado <b>User</b> ou <b>Computer</b> da GPO.
+    Util para tornar uma GPO "so usuario" ou "so maquina" sem precisar
+    deletar configuracoes.</i></p>
+    <form method="post" action="{{ url_for('gpo.state', guid=guid) }}">
+      <label>
+        <input type="checkbox" name="user_enabled" value="1"
+               {% if state.user_enabled %}checked{% endif %}>
+        Configuracoes de <b>Usuario</b> habilitadas
+      </label>
+      <br>
+      <label>
+        <input type="checkbox" name="computer_enabled" value="1"
+               {% if state.computer_enabled %}checked{% endif %}>
+        Configuracoes de <b>Computador</b> habilitadas
+      </label>
+      <br><br>
+      <button class="btn-3d" type="submit">aplicar estado</button>
+      <small>&nbsp;flags atual = {{ state.flags }}</small>
+    </form>
+  </div>
+</div>
+
+<br>
+
+<div class="panel">
+  <div class="panel-title">:: Zona de perigo ::</div>
+  <div class="panel-body">
+    {% set _gname = info.get('display name', guid) %}
+    <form method="post" action="{{ url_for('gpo.delete', guid=guid) }}"
+          onsubmit="return confirm('APAGAR a GPO ' + {{ _gname|tojson }} + '? Isso remove a GPO de todos os containers e apaga seus arquivos do SYSVOL.');">
+      <button class="btn-3d bad" type="submit">APAGAR GPO</button>
+    </form>
+  </div>
+</div>
+
+</td>
+
+<td valign="top" width="45%">
+
+<div class="panel">
+  <div class="panel-title">:: Linkada em ({{ containers|length }}) ::</div>
+  <div class="panel-body">
+    {% if not containers %}
+      <p><i>(GPO criada mas nao linkada em nenhum container - portanto nao se aplica a ninguem)</i></p>
+    {% else %}
+    <table border="1" cellpadding="4" cellspacing="0" class="grid" width="100%">
+      <tr bgcolor="#000080" style="color:white">
+        <th>Container</th><th>Estado</th><th>Heranca</th><th>&nbsp;</th>
+      </tr>
+      {% for c in containers %}
+      <tr>
+        <td><small><code>{{ c.dn }}</code></small></td>
+        <td>
+          {% if c.disabled %}<b class="bad">desabilitado</b>
+          {% else %}<b class="ok">ativo</b>{% endif %}
+          {% if c.enforce %}<br><b>* enforced</b>{% endif %}
+        </td>
+        <td>
+          <small>{{ c.inheritance or '-' }}</small>
+          <form method="post" action="{{ url_for('gpo.inheritance') }}" style="margin-top:4px">
+            <input type="hidden" name="container" value="{{ c.dn }}">
+            <input type="hidden" name="ref_guid" value="{{ guid }}">
+            {% if 'block' in (c.inheritance or '')|lower %}
+              <button class="btn-3d" type="submit">desbloquear</button>
+            {% else %}
+              <button class="btn-3d" name="block" value="1" type="submit">bloquear</button>
+            {% endif %}
+          </form>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('gpo.link', guid=guid) }}" style="display:block">
+            <input type="hidden" name="container" value="{{ c.dn }}">
+            <button class="btn-3d" name="enforce" value="{{ '0' if c.enforce else '1' }}" type="submit">
+              {{ 'remover enforce' if c.enforce else 'enforce' }}
+            </button>
+          </form>
+          <form method="post" action="{{ url_for('gpo.link', guid=guid) }}" style="display:block;margin-top:3px">
+            <input type="hidden" name="container" value="{{ c.dn }}">
+            <button class="btn-3d" name="disable" value="{{ '0' if c.disabled else '1' }}" type="submit">
+              {{ 'reativar' if c.disabled else 'desativar' }}
+            </button>
+          </form>
+          <form method="post" action="{{ url_for('gpo.unlink', guid=guid) }}"
+                onsubmit="return confirm('Remover link de {{ c.dn }}?');" style="margin-top:3px">
+            <input type="hidden" name="container" value="{{ c.dn }}">
+            <button class="btn-3d bad" type="submit">unlink</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+</div>
+
+<br>
+
+<div class="panel">
+  <div class="panel-title">:: Adicionar link ::</div>
+  <div class="panel-body">
+    {% if not targets %}
+      <p><i>(ja linkada em todos os containers conhecidos)</i></p>
+    {% else %}
+    <form method="post" action="{{ url_for('gpo.link', guid=guid) }}">
+      <select name="container">
+        {% for t in targets %}
+          <option value="{{ t.dn }}">{{ t.label }}</option>
+        {% endfor %}
+      </select>
+      <br><br>
+      <label><input type="checkbox" name="enforce" value="1"> enforce (forcar)</label>
+      &nbsp;
+      <label><input type="checkbox" name="disable" value="1"> criar desabilitado</label>
+      <br><br>
+      <button class="btn-3d" type="submit">linkar</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+</td>
+
+</tr></table>
+
+<br>
+
+<h2>:: Configuracoes (Editor estilo GPMC) ::</h2>
+
+<p><i>Edita os <code>Registry.pol</code> da GPO direto. Cada item adicionado
+aqui vira uma chave de registro aplicada via Group Policy nas estacoes.
+Apos salvar, o <code>versionNumber</code> e o <code>gPC...ExtensionNames</code>
+sao atualizados automaticamente.</i></p>
+
+<table width="100%" cellpadding="0" cellspacing="8"><tr>
+
+<td valign="top" width="55%">
+
+<div class="panel">
+  <div class="panel-title">:: Politicas APLICADAS ({{ entries.machine|length + entries.user|length }}) ::</div>
+  <div class="panel-body">
+
+    {% for scope, lst in [('machine', entries.machine), ('user', entries.user)] %}
+      <h3 style="margin-top:6px">{{ '[Computador]' if scope=='machine' else '[Usuario]' }} ({{ lst|length }})</h3>
+      {% if not lst %}
+        <p><small><i>(nenhuma)</i></small></p>
+      {% else %}
+      <table border="1" cellpadding="3" cellspacing="0" class="grid" width="100%">
+        <tr bgcolor="#000080" style="color:white">
+          <th>Politica / Chave</th><th width="80">Tipo</th><th width="120">Valor</th><th width="60">&nbsp;</th>
+        </tr>
+        {% for e in lst %}
+        <tr>
+          <td>
+            {% if e.catalog_title %}
+              <b>{{ e.catalog_title }}</b><br>
+            {% endif %}
+            <small><code>{{ e.key }}</code><br>
+            <code>{{ e.name }}</code></small>
+          </td>
+          <td><small>{{ e.type_name }}</small></td>
+          <td><small><code>{{ e.data }}</code></small></td>
+          <td align="center">
+            <form method="post" action="{{ url_for('gpo.policy_remove', guid=guid) }}"
+                  onsubmit="return confirm('Remover esta politica?');">
+              <input type="hidden" name="scope" value="{{ scope }}">
+              <input type="hidden" name="key" value="{{ e.key }}">
+              <input type="hidden" name="name" value="{{ e.name }}">
+              <button class="btn-3d bad" type="submit">x</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+    {% endfor %}
+
+  </div>
+</div>
+
+<br>
+
+<div class="panel">
+  <div class="panel-title">:: Modo expert :: registrar valor manual ::</div>
+  <div class="panel-body">
+    <form method="post" action="{{ url_for('gpo.policy_raw_set', guid=guid) }}">
+    <table cellpadding="3">
+      <tr><td><b>Escopo:</b></td><td>
+        <select name="scope">
+          <option value="machine">Computer (HKLM)</option>
+          <option value="user">User (HKCU)</option>
+        </select></td></tr>
+      <tr><td><b>Tipo:</b></td><td>
+        <select name="type">
+          <option>REG_DWORD</option>
+          <option>REG_SZ</option>
+          <option>REG_EXPAND_SZ</option>
+          <option>REG_QWORD</option>
+          <option>REG_BINARY</option>
+        </select></td></tr>
+      <tr><td><b>Chave (Key):</b></td><td>
+        <input name="key" size="60" placeholder="Software\Policies\..." required></td></tr>
+      <tr><td><b>Nome (Value):</b></td><td>
+        <input name="name" size="40" required></td></tr>
+      <tr><td><b>Dado:</b></td><td>
+        <input name="data" size="40" placeholder="0, 1, ou string..."></td></tr>
+    </table>
+    <button class="btn-3d" type="submit">aplicar valor</button>
+    </form>
+  </div>
+</div>
+
+</td>
+
+<td valign="top" width="45%">
+
+<div class="panel">
+  <div class="panel-title">:: Catalogo de politicas ({{ catalog_avail|length }}) ::</div>
+  <div class="panel-body">
+
+    {% if not catalog_avail %}
+      <p><i>(todas as politicas do catalogo ja estao aplicadas)</i></p>
+    {% endif %}
+
+    {% set cur_scope = namespace(v="") %}
+    {% for p in catalog_avail %}
+      {% if p.scope != cur_scope.v %}
+        {% set cur_scope.v = p.scope %}
+        <h3 style="margin-top:8px">{{ '[Computador]' if p.scope=='machine' else '[Usuario]' }}</h3>
+      {% endif %}
+
+      <div style="border:1px solid #888;padding:4px 6px;margin-bottom:4px;background:#f0f0f0">
+        <b>{{ p.title }}</b>
+        {% if p.desc %}<br><small>{{ p.desc }}</small>{% endif %}
+        <br><small><code>{{ p.key }}</code> :: <code>{{ p.value }}</code> ({{ type_names.get(p.type, p.type) }})</small>
+        <br>
+        <form method="post" action="{{ url_for('gpo.policy_add', guid=guid) }}"
+              style="margin-top:3px;display:inline-block">
+          <input type="hidden" name="catalog_id" value="{{ p.id }}">
+          {% if p.options %}
+            <select name="data">
+              {% for label, dat in p.options.items() %}
+                <option value="{{ dat }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          {% endif %}
+          {% if p.free_text %}
+            &nbsp;ou&nbsp;<input name="data" size="20" placeholder="texto livre">
+          {% endif %}
+          <button class="btn-3d" type="submit">aplicar</button>
+        </form>
+      </div>
+    {% endfor %}
+
+  </div>
+</div>
+
+</td></tr></table>
+
+{% endblock %}

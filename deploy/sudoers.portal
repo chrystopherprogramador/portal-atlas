@@ -1,0 +1,37 @@
+# Portal ATLAS - comandos permitidos sem senha
+# Instalar em /etc/sudoers.d/portal-atlas com chmod 440
+Cmnd_Alias PORTAL_CMDS = \
+    /usr/bin/samba-tool, \
+    /usr/bin/ldbsearch, \
+    /usr/bin/ldbmodify, \
+    /usr/bin/wg, \
+    /usr/sbin/wg, \
+    /usr/bin/wg-quick, \
+    /usr/sbin/wg-quick, \
+    /usr/local/sbin/add-peer.sh, \
+    /usr/local/sbin/del-peer.sh, \
+    /usr/local/sbin/criar-usuario.sh, \
+    /usr/local/sbin/remover-usuario.sh, \
+    /usr/local/sbin/gerenciar-share.sh, \
+    /usr/local/sbin/gerenciar-ftp.sh, \
+    /usr/local/sbin/gerenciar-wallpaper.sh, \
+    /usr/local/sbin/gerenciar-drives.sh, \
+    /usr/local/sbin/gerenciar-helpdesk.sh, \
+    /usr/local/sbin/gerenciar-rustdesk.sh, \
+    /usr/bin/docker, \
+    /usr/local/sbin/gpo-policy.py, \
+    /bin/cat
+
+Cmnd_Alias PORTAL_PG = \
+    /usr/bin/psql, \
+    /usr/bin/createdb, \
+    /usr/bin/dropdb, \
+    /usr/bin/pg_dumpall
+
+Cmnd_Alias PORTAL_BACKUP = \
+    /usr/local/sbin/atlas-backup.sh, \
+    /usr/bin/borg
+
+root     ALL=(ALL)      NOPASSWD: PORTAL_CMDS
+root     ALL=(postgres) NOPASSWD: PORTAL_PG
+root     ALL=(ALL)      NOPASSWD: PORTAL_BACKUP

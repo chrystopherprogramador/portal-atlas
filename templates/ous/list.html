@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}OUs{% endblock %}
+{% block content %}
+<h1>:: OUs ::</h1>
+
+<div class="panel" style="max-width:500px">
+<div class="panel-title">:: Nova ::</div>
+<div class="panel-body">
+  <form method="post" action="{{ url_for('ous.new') }}">
+    <input name="name" size="30" placeholder="Ex: RH" required>
+    <button class="btn-3d" type="submit">Criar OU</button>
+  </form>
+</div>
+</div>
+
+<br>
+<div class="panel">
+<div class="panel-title">:: Lista ({{ ous|length }}) ::</div>
+<div class="panel-body">
+<p><i>O <b>grupo correlato</b> de cada OU e definido manualmente. Quando voce
+cria um usuario em uma OU que tem grupo correlato configurado, ele e
+automaticamente adicionado a esse grupo. OUs sem grupo configurado nao alteram
+nenhum grupo.</i></p>
+<table border="1" cellpadding="4" cellspacing="0" class="grid">
+<tr bgcolor="#000080" style="color:white">
+  <th>OU</th><th>Grupo correlato</th><th>Definir / alterar</th>
+</tr>
+{% for o in ous %}
+  {% set name = o|replace('OU=','') %}
+  {% set cur = mapping.get(name, '') %}
+  <tr>
+    <td>{{ o }}</td>
+    <td>
+      {% if cur %}
+        {% if cur in groups %}
+          <b class="ok">&#9679; {{ cur }}</b>
+        {% else %}
+          <b class="bad">&#9679; {{ cur }} (grupo inexistente)</b>
+        {% endif %}
+      {% else %}
+        <span style="color:#888">-- nenhum --</span>
+      {% endif %}
+    </td>
+    <td>
+      <form method="post" action="{{ url_for('ous.set_group', ou=name) }}" style="display:inline">
+        <select name="group">
+          <option value="">-- nenhum --</option>
+          {% for g in groups %}
+            <option value="{{ g }}" {% if g == cur %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn-3d" type="submit">salvar</button>
+      </form>
+    </td>
+  </tr>
+{% endfor %}
+</table>
+<br>
+<form method="post" action="{{ url_for('ous.sync_groups') }}"
+      onsubmit="return confirm('Adicionar todos os usuarios das OUs configuradas aos seus grupos correlatos?');">
+  <button class="btn-3d" type="submit">Sincronizar OUs &lt;-&gt; Grupos</button>
+  <small>&nbsp;adiciona os usuarios de cada OU configurada ao grupo correlato (apenas OUs com mapeamento).</small>
+</form>
+</div>
+</div>
+{% endblock %}

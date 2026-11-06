@@ -1,0 +1,14 @@
+[Unit]
+Description=ATLAS Backup diario (01:30)
+Requires=atlas-backup.service
+
+[Timer]
+# Todo dia as 01:30 com jitter de 10 min (evita carga simultanea se houver mais de 1 servidor)
+OnCalendar=*-*-* 01:30:00
+RandomizedDelaySec=600
+Persistent=true
+AccuracySec=1min
+Unit=atlas-backup.service
+
+[Install]
+WantedBy=timers.target

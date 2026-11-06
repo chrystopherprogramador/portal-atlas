@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}Docker{% endblock %}
+{% block content %}
+<h1>:: Docker ::
+  <span style="float:right;font-size:11px;font-weight:normal">
+    <small>
+      Engine <b>{{ info.version.Server.Version if info.version.Server else '?' }}</b>
+      &nbsp;|&nbsp;
+      API <b>{{ info.version.Server.ApiVersion if info.version.Server else '?' }}</b>
+      &nbsp;|&nbsp;
+      OS <b>{{ info.version.Server.Os if info.version.Server else '?' }}</b>
+    </small>
+  </span>
+</h1>
+
+<p><i>Painel completo do Docker. Containers, imagens, volumes e redes do servidor.
+Atualiza ao recarregar a pagina.</i></p>
+
+<!-- ============================================================ -->
+<!-- ABAS -->
+<div style="margin:8px 0">
+  <a href="#tab-cont" class="btn-3d">Containers ({{ containers|length }})</a>
+  <a href="#tab-img"  class="btn-3d">Imagens ({{ images|length }})</a>
+  <a href="#tab-vol"  class="btn-3d">Volumes ({{ volumes|length }})</a>
+  <a href="#tab-net"  class="btn-3d">Redes ({{ networks|length }})</a>
+  <a href="#tab-sys"  class="btn-3d">Sistema</a>
+</div>
+
+<!-- ============================================================ -->
+<a name="tab-cont"></a>
+<div class="panel">
+<div class="panel-title">:: Containers ({{ containers|length }}) ::</div>
+<div class="panel-body">
+{% if containers %}
+<table class="grid" width="100%">
+  <tr class="th">
+    <th>Nome</th>
+    <th>Imagem</th>
+    <th>Estado</th>
+    <th>CPU</th>
+    <th>RAM</th>
+    <th>Portas</th>
+    <th>Criado</th>
+    <th>Acoes</th>
+  </tr>
+  {% for c in containers %}
+  {% set st = stats.get(c.Names) %}
+  <tr>
+    <td><b>{{ c.Names }}</b><br><small><code>{{ c.ID[:12] }}</code></small></td>
+    <td><small>{{ c.Image }}</small></td>
+    <td>
+      {% if 'Up' in c.State or c.State == 'running' %}
+        <b class="ok">&#9679; {{ c.Status or c.State }}</b>
+      {% elif c.State == 'paused' %}
+        <b style="color:#a60">&#9679; paused</b>
+      {% else %}
+        <b class="bad">&#9679; {{ c.Status or c.State }}</b>
+      {% endif %}
+    </td>
+    <td align="right"><small>{{ st.CPUPerc if st else '-' }}</small></td>
+    <td align="right"><small>{{ st.MemUsage if st else '-' }}</small></td>
+    <td><small>{{ c.Ports or '-' }}</small></td>
+    <td><small>{{ c.RunningFor or c.CreatedAt }}</small></td>
+    <td nowrap>
+      <a href="{{ url_for('docker.container_logs', cid=c.ID) }}" class="btn-3d">logs</a>
+      {% if 'Up' in c.State or c.State == 'running' %}
+        <form method="post" action="{{ url_for('docker.container_act', cid=c.ID, action='restart') }}" style="display:inline">
+          <button class="btn-3d" type="submit">restart</button>
+        </form>
+        <form method="post" action="{{ url_for('docker.container_act', cid=c.ID, action='stop') }}" style="display:inline">
+          <button class="btn-3d" type="submit">stop</button>
+        </form>
+      {% else %}
+        <form method="post" action="{{ url_for('docker.container_act', cid=c.ID, action='start') }}" style="display:inline">
+          <button class="btn-3d" type="submit">start</button>
+        </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('docker.container_act', cid=c.ID, action='rm') }}" style="display:inline"
+            onsubmit="return confirm('Remover container {{ c.Names }} (forcado)?');">
+        <button class="btn-3d bad" type="submit">rm</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p><i>Nenhum container.</i></p>
+{% endif %}
+</div>
+</div>
+
+<br>
+
+<!-- ============================================================ -->
+<a name="tab-img"></a>
+<div class="panel">
+<div class="panel-title">:: Imagens ({{ images|length }}) ::</div>
+<div class="panel-body">
+
+<form method="post" action="{{ url_for('docker.image_pull') }}" style="margin-bottom:8px">
+  <b>Pull:</b>
+  <input name="image" size="40" placeholder="ex: nginx:alpine" required
+         pattern="[a-zA-Z0-9._/:\-]{1,128}">
+  <button class="btn-3d" type="submit">baixar imagem</button>
+  <small>(timeout 10 min)</small>
+</form>
+
+{% if images %}
+<table class="grid" width="100%">
+  <tr class="th">
+    <th>Repositorio</th>
+    <th>Tag</th>
+    <th>ID</th>
+    <th>Tamanho</th>
+    <th>Criada</th>
+    <th>Acoes</th>
+  </tr>
+  {% for i in images %}
+  <tr>
+    <td><b>{{ i.Repository }}</b></td>
+    <td><small>{{ i.Tag }}</small></td>
+    <td><code>{{ i.ID[:19] if i.ID else '?' }}</code></td>
+    <td align="right"><small>{{ i.Size }}</small></td>
+    <td><small>{{ i.CreatedSince }}</small></td>
+    <td>
+      <form method="post" action="{{ url_for('docker.image_delete', iid=i.ID) }}" style="display:inline"
+            onsubmit="return confirm('Remover imagem {{ i.Repository }}:{{ i.Tag }}?');">
+        <button class="btn-3d" type="submit">rmi</button>
+      </form>
+      <form method="post" action="{{ url_for('docker.image_delete', iid=i.ID) }}" style="display:inline"
+            onsubmit="return confirm('Forcar remocao (-f) {{ i.Repository }}:{{ i.Tag }}?');">
+        <input type="hidden" name="force" value="1">
+        <button class="btn-3d bad" type="submit">rmi -f</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p><i>Nenhuma imagem.</i></p>
+{% endif %}
+</div>
+</div>
+
+<br>
+
+<!-- ============================================================ -->
+<a name="tab-vol"></a>
+<div class="panel">
+<div class="panel-title">:: Volumes ({{ volumes|length }}) ::</div>
+<div class="panel-body">
+{% if volumes %}
+<table class="grid" width="100%">
+  <tr class="th"><th>Nome</th><th>Driver</th><th>Mountpoint</th><th>Acoes</th></tr>
+  {% for v in volumes %}
+  <tr>
+    <td><b>{{ v.Name }}</b></td>
+    <td><small>{{ v.Driver }}</small></td>
+    <td><small><code>{{ v.Mountpoint }}</code></small></td>
+    <td>
+      <form method="post" action="{{ url_for('docker.volume_delete', name=v.Name) }}" style="display:inline"
+            onsubmit="return confirm('Remover volume {{ v.Name }}?');">
+        <button class="btn-3d bad" type="submit">rm</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p><i>Nenhum volume.</i></p>
+{% endif %}
+</div>
+</div>
+
+<br>
+
+<!-- ============================================================ -->
+<a name="tab-net"></a>
+<div class="panel">
+<div class="panel-title">:: Redes ({{ networks|length }}) ::</div>
+<div class="panel-body">
+{% if networks %}
+<table class="grid" width="100%">
+  <tr class="th"><th>Nome</th><th>Driver</th><th>Scope</th><th>ID</th><th>Acoes</th></tr>
+  {% for n in networks %}
+  <tr>
+    <td><b>{{ n.Name }}</b></td>
+    <td><small>{{ n.Driver }}</small></td>
+    <td><small>{{ n.Scope }}</small></td>
+    <td><code>{{ n.ID[:12] if n.ID else '' }}</code></td>
+    <td>
+      {% if n.Name not in ('bridge','host','none') %}
+      <form method="post" action="{{ url_for('docker.network_delete', name=n.Name) }}" style="display:inline"
+            onsubmit="return confirm('Remover rede {{ n.Name }}?');">
+        <button class="btn-3d bad" type="submit">rm</button>
+      </form>
+      {% else %}<small><i>built-in</i></small>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p><i>Nenhuma rede.</i></p>
+{% endif %}
+</div>
+</div>
+
+<br>
+
+<!-- ============================================================ -->
+<a name="tab-sys"></a>
+<table width="100%" cellpadding="0" cellspacing="0"><tr>
+<td valign="top" style="width:50%;padding-right:8px">
+
+<div class="panel">
+<div class="panel-title">:: Sistema ::</div>
+<div class="panel-body">
+{% if info.version.Server %}
+<table cellpadding="3">
+  <tr><td><b>Engine:</b></td><td>{{ info.version.Server.Version }}</td></tr>
+  <tr><td><b>API:</b></td><td>{{ info.version.Server.ApiVersion }}</td></tr>
+  <tr><td><b>OS/Arch:</b></td><td>{{ info.version.Server.Os }}/{{ info.version.Server.Arch }}</td></tr>
+  <tr><td><b>Kernel:</b></td><td><small>{{ info.version.Server.KernelVersion }}</small></td></tr>
+  <tr><td><b>GoVer:</b></td><td><small>{{ info.version.Server.GoVersion }}</small></td></tr>
+  <tr><td><b>BuildTime:</b></td><td><small>{{ info.version.Server.BuildTime }}</small></td></tr>
+  <tr><td><b>Client:</b></td><td><small>{{ info.version.Client.Version if info.version.Client else '' }}</small></td></tr>
+</table>
+{% else %}<p class="bad">erro lendo versao</p>{% endif %}
+</div>
+</div>
+
+</td>
+<td valign="top" style="width:50%">
+
+<div class="panel">
+<div class="panel-title">:: Uso de disco ::</div>
+<div class="panel-body">
+{% if info.df %}
+<table class="grid" width="100%">
+  <tr class="th"><th>Tipo</th><th>Total</th><th>Ativo</th><th>Tamanho</th><th>Recuperavel</th></tr>
+  {% for d in info.df %}
+  <tr>
+    <td><b>{{ d.Type }}</b></td>
+    <td>{{ d.TotalCount }}</td>
+    <td>{{ d.Active }}</td>
+    <td>{{ d.Size }}</td>
+    <td>{{ d.Reclaimable }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}<p><i>sem dados</i></p>{% endif %}
+
+<br>
+
+<form method="post" action="{{ url_for('docker.prune') }}"
+      onsubmit="return confirm('docker system prune -a -f\nVai remover TODAS as imagens nao usadas, build cache, networks orfas e containers parados.\nConfirma?');">
+  <button class="btn-3d" type="submit">prune (imagens nao usadas)</button>
+</form>
+&nbsp;
+<form method="post" action="{{ url_for('docker.prune') }}" style="display:inline"
+      onsubmit="return confirm('docker system prune -a -f --volumes\nVai remover TUDO acima + VOLUMES nao referenciados.\nIsso PODE APAGAR DADOS de containers parados!\nConfirma?');">
+  <input type="hidden" name="volumes" value="1">
+  <button class="btn-3d bad" type="submit">prune + volumes</button>
+</form>
+</div>
+</div>
+
+</td></tr></table>
+
+{% endblock %}

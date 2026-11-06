@@ -1,0 +1,27 @@
+[Unit]
+Description=ttyd - Terminal web para portal ATLAS
+After=network.target
+
+[Service]
+Type=simple
+# -p porta / -i interface (so localhost, nginx faz proxy) / -b base-path
+# -W writable (permite digitar) / login = prompt PAM (auth por credenciais Linux)
+# Fonte maior e tema escuro
+ExecStart=/usr/bin/ttyd \
+    -p 7681 \
+    -i 127.0.0.1 \
+    -b /terminal-ws \
+    -W \
+    -t fontSize=14 \
+    -t rendererType=canvas \
+    -t disableLeaveAlert=true \
+    -t 'theme={"background":"#000000","foreground":"#00ff00","cursor":"#00ff00"}' \
+    -t titleFixed=ATLAS \
+    /bin/login
+Restart=on-failure
+RestartSec=2
+# Seguranca: roda como root mas 'login' faz PAM e dropa privilegio conforme usuario
+User=root
+
+[Install]
+WantedBy=multi-user.target

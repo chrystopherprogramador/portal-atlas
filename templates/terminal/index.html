@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Terminal - ATLAS{% endblock %}
+{% block content %}
+<div class="window" style="margin:0;">
+  <div class="title-bar">
+    <div class="title-bar-text">&gt;_ atlas.terminal.exe &mdash; shell remoto ao vivo</div>
+  </div>
+  <div class="window-body" style="padding:6px;">
+    <div style="font-size:11px;color:#666;margin-bottom:4px;">
+      <b>Aviso:</b> este e um shell real no servidor ATLAS. Voce precisa fazer login
+      com suas credenciais Linux (usuario <code>tecnologia</code>). Para comandos
+      privilegiados use <code>sudo</code>. Sessao logada no portal: <b>{{ user }}</b>.
+    </div>
+    <iframe
+        src="/terminal-ws/"
+        id="atlas-term"
+        style="width:100%;height:calc(100vh - 200px);min-height:480px;border:2px inset #808080;background:#000;"
+        allow="clipboard-read; clipboard-write"></iframe>
+    <div style="margin-top:6px;font-size:11px;">
+      <button type="button" onclick="document.getElementById('atlas-term').src='/terminal-ws/?t='+Date.now()">
+        Reconectar
+      </button>
+      <button type="button" onclick="
+        var f=document.getElementById('atlas-term');
+        if(f.requestFullscreen) f.requestFullscreen();
+      ">Tela cheia</button>
+      <span style="color:#666;margin-left:10px;">
+        Dica: copia/cola com Ctrl+Shift+C / Ctrl+Shift+V.
+      </span>
+    </div>
+  </div>
+</div>
+{% endblock %}

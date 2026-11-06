@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+{% block title %}Painel de controle{% endblock %}
+{% block content %}
+
+<h1>:: Painel de controle ::
+  <span style="float:right;font-size:11px;font-weight:normal">
+    <span id="live-dot" style="color:#0f0">&#9679;</span>
+    <span id="live-label">LIVE</span>
+    &nbsp; <small>atualizacao: <span id="last-upd">--:--:--</span></small>
+  </span>
+</h1>
+
+<p><i>Bem vindo ao ATLAS -- uptime: <b id="st-uptime">{{ uptime }}</b>
+   | <marquee behavior="alternate" scrollamount="2" width="250" style="display:inline-block">
+     servidor da TEXAS CONTAINERS em pleno funcionamento
+   </marquee></i></p>
+
+<table width="100%" cellpadding="0" cellspacing="8"><tr>
+
+<td valign="top" width="50%">
+
+  <div class="panel">
+    <div class="panel-title">:: Servicos ::</div>
+    <div class="panel-body">
+      <table width="100%" class="grid" id="tbl-services">
+        <tr class="th"><th align="left">Servico</th><th align="left">Unit</th><th>Status</th></tr>
+        {% for s in services %}
+        <tr data-unit="{{ s.unit }}">
+          <td>{{ s.label }}</td>
+          <td><small>{{ s.unit }}</small></td>
+          <td align="center" class="svc-status">
+            {% if s.status == 'active' %}<b class="ok">&#9679; ativo</b>
+            {% elif s.status == 'inactive' %}<b class="bad">&#9679; parado</b>
+            {% elif s.status == 'failed' %}<b class="bad">&#9632; FALHOU</b>
+            {% else %}<i>{{ s.status }}</i>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+
+  <br>
+
+  <div class="panel">
+    <div class="panel-title">:: Saude do servidor ::</div>
+    <div class="panel-body">
+      <table width="100%" cellpadding="3">
+        <tr>
+          <td width="90"><b>CPU</b> ({{ ncpu }}x)</td>
+          <td><div class="bar"><div id="bar-cpu" class="bar-fill{% if load_pct > 80 %} bar-red{% elif load_pct > 50 %} bar-yel{% endif %}" style="width:{{ load_pct }}%"></div></div></td>
+          <td align="right"><small id="st-load">load {{ load['1m'] }} / {{ load['5m'] }} / {{ load['15m'] }}</small></td>
+        </tr>
+        <tr>
+          <td><b>RAM</b></td>
+          <td><div class="bar"><div id="bar-mem" class="bar-fill{% if mem.pct > 85 %} bar-red{% elif mem.pct > 65 %} bar-yel{% endif %}" style="width:{{ mem.pct }}%"></div></div></td>
+          <td align="right"><small id="st-mem">{{ mem.used_mb }} / {{ mem.total_mb }} MB ({{ mem.pct }}%)</small></td>
+        </tr>
+        <tr>
+          <td><b>Disco /</b></td>
+          <td>
+            {% set dp = disk.pct|replace('%','')|int %}
+            <div class="bar"><div id="bar-disk" class="bar-fill{% if dp > 85 %} bar-red{% elif dp > 65 %} bar-yel{% endif %}" style="width:{{ dp }}%"></div></div>
+          </td>
+          <td align="right"><small id="st-disk">{{ disk.used }} / {{ disk.size }} ({{ disk.pct }})</small></td>
+        </tr>
+        {% if disk_srv.mount == '/srv' and disk_srv.fs != disk.fs %}
+        <tr>
+          <td><b>Disco /srv</b></td>
+          <td>
+            {% set dp2 = disk_srv.pct|replace('%','')|int %}
+            <div class="bar"><div id="bar-disk-srv" class="bar-fill{% if dp2 > 85 %} bar-red{% elif dp2 > 65 %} bar-yel{% endif %}" style="width:{{ dp2 }}%"></div></div>
+          </td>
+          <td align="right"><small id="st-disk-srv">{{ disk_srv.used }} / {{ disk_srv.size }} ({{ disk_srv.pct }})</small></td>
+        </tr>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  <br>
+
+  {% if shares %}
+  <div class="panel">
+    <div class="panel-title">:: Tamanho das pastas (shares) ::</div>
+    <div class="panel-body">
+      <table width="100%" class="grid" id="tbl-shares">
+        <tr class="th"><th align="left">Share</th><th align="right">Tamanho</th></tr>
+        {% for s in shares %}
+        <tr data-share="{{ s.name }}"><td>{{ s.name }}</td><td align="right"><b class="share-size">{{ s.size }}</b></td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</td>
+
+<td valign="top" width="50%">
+
+  <div class="panel">
+    <div class="panel-title">:: Dominio AD ::</div>
+    <div class="panel-body">
+      <table cellpadding="3">
+        <tr><td><b>Dominio:</b></td><td>{{ domain.domain or '-' }}</td></tr>
+        <tr><td><b>Netbios:</b></td><td>{{ domain.netbios or '-' }}</td></tr>
+        <tr><td><b>DC FQDN:</b></td><td>{{ domain.dc_fqdn or '-' }}</td></tr>
+        <tr><td><b>Usuarios AD:</b></td><td id="st-users">{{ users_count }}</td></tr>
+        <tr><td><b>Peers VPN:</b></td><td id="st-peers">{{ peers|length }}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <br>
+
+  <div class="panel">
+    <div class="panel-title">:: Backup ::
+      <span style="float:right"><a href="{{ url_for('backup.index') }}" style="color:#fff">[ detalhes ]</a></span>
+    </div>
+    <div class="panel-body">
+      <table cellpadding="3" width="100%">
+        <tr>
+          <td width="110"><b>Estado:</b></td>
+          <td><span id="bk-badge" class="badge badge-{{ backup.status_color }}">{{ backup.status_label|upper }}</span></td>
+        </tr>
+        <tr>
+          <td><b>Ultimo:</b></td>
+          <td><span id="bk-age">ha {{ backup.age_label }}</span>
+              <small id="bk-finish">{{ backup.last.finished or '--' }}</small></td>
+        </tr>
+        {% if backup.last.stats %}
+        <tr>
+          <td><b>Repo:</b></td>
+          <td><small><b>{{ (backup.last.stats.repo_unique_csize or 0) // (1024*1024) }} MB</b> unicos /
+              {{ (backup.last.stats.repo_total_size or 0) // (1024*1024*1024) }} GB originais</small></td>
+        </tr>
+        {% endif %}
+        <tr>
+          <td><b>Proximo:</b></td>
+          <td><small>hoje 01:30 UTC (timer)</small></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <br>
+
+  <div class="panel">
+    <div class="panel-title">:: Alertas &amp; Monitoramento ::
+      <span style="float:right"><a href="{{ url_for('monitoring.index') }}" style="color:#fff">[ detalhes ]</a></span>
+    </div>
+    <div class="panel-body">
+      <table cellpadding="3" width="100%">
+        <tr>
+          <td width="110"><b>Status:</b></td>
+          <td><span id="mon-badge" class="badge badge-{{ monitoring.status_color }}">{{ monitoring.status_label|upper }}</span>
+              &nbsp; <small><span id="mon-count">{{ monitoring.active }}</span> ativos
+              (<span id="mon-crit">{{ monitoring.critical }}</span> critico,
+               <span id="mon-warn">{{ monitoring.warning }}</span> aviso)</small></td>
+        </tr>
+        <tr>
+          <td><b>Prometheus:</b></td>
+          <td><span id="mon-prom" class="badge badge-{{ 'green' if monitoring.prometheus_up else 'red' }}">{{ 'UP' if monitoring.prometheus_up else 'DOWN' }}</span>
+              &nbsp;<b>Alertmanager:</b>
+              <span id="mon-am" class="badge badge-{{ 'green' if monitoring.alertmanager_up else 'red' }}">{{ 'UP' if monitoring.alertmanager_up else 'DOWN' }}</span></td>
+        </tr>
+        {% if monitoring.top %}
+        <tr>
+          <td valign="top"><b>Top:</b></td>
+          <td><ul id="mon-top" style="margin:0;padding-left:18px">
+            {% for a in monitoring.top %}
+            <li><small><b class="{{ 'bad' if a.severity=='critical' else '' }}">[{{ a.severity|upper }}]</b> {{ a.alertname }} <i>&mdash; {{ a.summary|truncate(70) }}</i></small></li>
+            {% endfor %}
+          </ul></td>
+        </tr>
+        {% endif %}
+        <tr>
+          <td colspan="2" align="right">
+            <small><a href="/grafana/" target="_blank">Grafana</a> &middot;
+            <a href="/prometheus/alerts" target="_blank">Prometheus</a> &middot;
+            <a href="/alertmanager/" target="_blank">Alertmanager</a></small>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <br>
+
+  <div class="panel">
+    <div class="panel-title">:: Ultimas acoes (<span id="audit-count">{{ audit_tail|length }}</span>) ::</div>
+    <div class="panel-body">
+      <table width="100%" class="grid" id="tbl-audit">
+        <tr class="th">
+          <th align="left">Quando</th>
+          <th align="left">Quem</th>
+          <th align="left">Acao</th>
+          <th align="left">Alvo</th>
+          <th>OK</th>
+        </tr>
+        {% for a in audit_tail %}
+        <tr>
+          <td><small>{{ a.ts }}</small></td>
+          <td>{{ a.actor }}</td>
+          <td><code>{{ a.action }}</code></td>
+          <td>{{ a.target }}</td>
+          <td align="center">{% if a.ok %}<b class="ok">v</b>{% else %}<b class="bad">X</b>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5"><i>(sem acoes)</i></td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+
+</td>
+</tr></table>
+
+<br><center><small><i>ATLAS -- Best viewed in IE 6.0 @ 1024x768 -- auto-refresh: <b>5s</b></i></small></center>
+
+<script>
+(function(){
+  var INTERVAL = 5000;
+  var dot   = document.getElementById('live-dot');
+  var label = document.getElementById('live-label');
+  var upd   = document.getElementById('last-upd');
+
+  function setClass(el, pct){
+    if(!el) return;
+    el.classList.remove('bar-yel','bar-red');
+    if(pct > 85) el.classList.add('bar-red');
+    else if(pct > 65) el.classList.add('bar-yel');
+  }
+  function setClassCpu(el, pct){
+    if(!el) return;
+    el.classList.remove('bar-yel','bar-red');
+    if(pct > 80) el.classList.add('bar-red');
+    else if(pct > 50) el.classList.add('bar-yel');
+  }
+  function pctNum(str){
+    if(!str) return 0;
+    var m = /(\d+)\s*%/.exec(str);
+    return m ? parseInt(m[1]) : 0;
+  }
+  function setText(id, txt){
+    var el = document.getElementById(id);
+    if(el) el.textContent = txt;
+  }
+
+  function render(d){
+    setText('st-uptime', d.uptime);
+    // CPU
+    var cpu = document.getElementById('bar-cpu');
+    if(cpu) cpu.style.width = d.load_pct + '%';
+    setClassCpu(cpu, d.load_pct);
+    setText('st-load', 'load ' + d.load['1m'] + ' / ' + d.load['5m'] + ' / ' + d.load['15m']);
+    // RAM
+    var mem = document.getElementById('bar-mem');
+    if(mem) mem.style.width = d.mem.pct + '%';
+    setClass(mem, d.mem.pct);
+    setText('st-mem', d.mem.used_mb + ' / ' + d.mem.total_mb + ' MB (' + d.mem.pct + '%)');
+    // Disco
+    var disk = document.getElementById('bar-disk');
+    var dp = pctNum(d.disk.pct);
+    if(disk) disk.style.width = dp + '%';
+    setClass(disk, dp);
+    setText('st-disk', d.disk.used + ' / ' + d.disk.size + ' (' + d.disk.pct + ')');
+    // Disco /srv (se existir)
+    var dsrv = document.getElementById('bar-disk-srv');
+    if(dsrv && d.disk_srv){
+      var dp2 = pctNum(d.disk_srv.pct);
+      dsrv.style.width = dp2 + '%';
+      setClass(dsrv, dp2);
+      setText('st-disk-srv', d.disk_srv.used + ' / ' + d.disk_srv.size + ' (' + d.disk_srv.pct + ')');
+    }
+    // Contadores dominio
+    setText('st-users', d.users_count);
+    setText('st-peers', d.peers_count);
+
+    // Monitoring badge + counts
+    if(d.monitoring){
+      var m = d.monitoring;
+      var mb = document.getElementById('mon-badge');
+      if(mb){
+        mb.className = 'badge badge-' + m.status_color;
+        mb.textContent = (m.status_label || '').toUpperCase();
+      }
+      setText('mon-count', m.active);
+      setText('mon-crit',  m.critical);
+      setText('mon-warn',  m.warning);
+      var mp = document.getElementById('mon-prom');
+      if(mp){ mp.className = 'badge badge-' + (m.prometheus_up?'green':'red'); mp.textContent = m.prometheus_up?'UP':'DOWN'; }
+      var ma = document.getElementById('mon-am');
+      if(ma){ ma.className = 'badge badge-' + (m.alertmanager_up?'green':'red'); ma.textContent = m.alertmanager_up?'UP':'DOWN'; }
+    }
+
+    // Services
+    var tblS = document.getElementById('tbl-services');
+    if(tblS){
+      var map = {};
+      d.services.forEach(function(s){ map[s.unit] = s; });
+      Array.prototype.forEach.call(tblS.querySelectorAll('tr[data-unit]'), function(tr){
+        var s = map[tr.getAttribute('data-unit')];
+        if(!s) return;
+        var cell = tr.querySelector('.svc-status');
+        if(!cell) return;
+        var html;
+        if(s.status === 'active')        html = '<b class="ok">&#9679; ativo</b>';
+        else if(s.status === 'inactive') html = '<b class="bad">&#9679; parado</b>';
+        else if(s.status === 'failed')   html = '<b class="bad">&#9632; FALHOU</b>';
+        else                             html = '<i>' + s.status + '</i>';
+        cell.innerHTML = html;
+      });
+    }
+
+    // Shares
+    var tblSh = document.getElementById('tbl-shares');
+    if(tblSh && d.shares){
+      var smap = {};
+      d.shares.forEach(function(s){ smap[s.name] = s.size; });
+      Array.prototype.forEach.call(tblSh.querySelectorAll('tr[data-share]'), function(tr){
+        var sz = smap[tr.getAttribute('data-share')];
+        if(sz){
+          var b = tr.querySelector('.share-size');
+          if(b) b.textContent = sz;
+        }
+      });
+    }
+
+    // Audit (rebuild body)
+    var tblA = document.getElementById('tbl-audit');
+    if(tblA && d.audit_tail){
+      // mantem header, remove resto
+      var rows = tblA.querySelectorAll('tr');
+      for(var i=rows.length-1; i>=1; i--) rows[i].parentNode.removeChild(rows[i]);
+      if(d.audit_tail.length === 0){
+        var tr = tblA.insertRow(-1);
+        tr.innerHTML = '<td colspan="5"><i>(sem acoes)</i></td>';
+      } else {
+        d.audit_tail.forEach(function(a){
+          var tr = tblA.insertRow(-1);
+          var ok = a.ok ? '<b class="ok">v</b>' : '<b class="bad">X</b>';
+          tr.innerHTML =
+            '<td><small>' + escapeHtml(a.ts)   + '</small></td>' +
+            '<td>'        + escapeHtml(a.actor) + '</td>' +
+            '<td><code>'  + escapeHtml(a.action) + '</code></td>' +
+            '<td>'        + escapeHtml(a.target) + '</td>' +
+            '<td align="center">' + ok + '</td>';
+        });
+      }
+      setText('audit-count', d.audit_tail.length);
+    }
+
+    var now = new Date();
+    upd.textContent = now.toTimeString().slice(0,8);
+    dot.style.color = '#0f0';
+    label.textContent = 'LIVE';
+  }
+
+  function escapeHtml(s){
+    return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function tick(){
+    fetch('/api/stats', {credentials: 'same-origin', cache: 'no-store'})
+      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+      .then(render)
+      .catch(function(e){
+        dot.style.color = '#f00';
+        label.textContent = 'OFFLINE';
+      });
+  }
+
+  // Pausa polling quando aba esta em background
+  var timer = setInterval(tick, INTERVAL);
+  document.addEventListener('visibilitychange', function(){
+    clearInterval(timer);
+    if(!document.hidden){
+      tick();
+      timer = setInterval(tick, INTERVAL);
+    }
+  });
+})();
+</script>
+
+{% endblock %}

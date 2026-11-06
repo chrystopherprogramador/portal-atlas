@@ -1,0 +1,21 @@
+[Unit]
+Description=ATLAS Portal (Flask/Gunicorn)
+After=network.target samba-ad-dc.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/atlas-portal
+Environment="PATH=/opt/atlas-portal/venv/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
+EnvironmentFile=-/etc/default/atlas-portal
+ExecStart=/opt/atlas-portal/venv/bin/gunicorn \
+    --workers 2 --bind 127.0.0.1:8080 \
+    --access-logfile /var/log/atlas-portal/access.log \
+    --error-logfile  /var/log/atlas-portal/error.log \
+    wsgi:app
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

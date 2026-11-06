@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ login }}{% endblock %}
+{% block content %}
+<h1>:: Usuario: {{ login }} ::</h1>
+
+<div class="panel">
+<div class="panel-title">:: Detalhes ::</div>
+<div class="panel-body"><pre>{{ data }}</pre></div>
+</div>
+
+<br>
+<table width="100%" cellspacing="10"><tr>
+<td width="33%" valign="top">
+  <div class="panel">
+  <div class="panel-title">:: Senha ::</div>
+  <div class="panel-body">
+    <form method="post" action="{{ url_for('users.reset_pw', login=login) }}">
+      <input name="password" size="25" placeholder="Nova senha">
+      <button class="btn-3d" type="submit">Resetar</button>
+    </form>
+  </div>
+  </div>
+</td>
+<td width="33%" valign="top">
+  <div class="panel">
+  <div class="panel-title">:: Habilitar/Desabilitar ::</div>
+  <div class="panel-body">
+    <form method="post" action="{{ url_for('users.enable', login=login) }}" style="display:inline">
+      <button class="btn-3d" type="submit">Habilitar</button>
+    </form>
+    <form method="post" action="{{ url_for('users.disable', login=login) }}" style="display:inline">
+      <button class="btn-3d" type="submit">Desabilitar</button>
+    </form>
+  </div>
+  </div>
+</td>
+<td width="33%" valign="top">
+  <div class="panel">
+  <div class="panel-title">:: Remover ::</div>
+  <div class="panel-body">
+    <form method="post" action="{{ url_for('users.delete', login=login) }}"
+          onsubmit="return confirm('Excluir {{ login }}? Esta acao nao pode ser desfeita.');">
+      <button class="btn-3d bad" type="submit">Excluir usuario</button>
+    </form>
+  </div>
+  </div>
+</td>
+</tr></table>
+
+<br>
+<a class="btn-3d" href="{{ url_for('users.index') }}">&laquo; Voltar</a>
+{% endblock %}

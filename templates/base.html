@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>{{ APP_NAME }} :: {% block title %}Home{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<table class="frame" cellpadding="0" cellspacing="0" border="0">
+<tr>
+  <td class="header">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td class="logo">
+        <span class="logo-a">A</span><span class="logo-t">T</span><span class="logo-l">L</span><span class="logo-a2">A</span><span class="logo-s">S</span>
+        <span class="sub">:: Network Administration Portal ::</span>
+      </td>
+      <td class="header-right">
+        {% if session.user %}
+          <b>{{ session.user.display or session.user.username }}</b>
+          &nbsp;|&nbsp; <a href="{{ url_for('auth.logout') }}">[ logout ]</a>
+        {% endif %}
+      </td>
+    </tr></table>
+  </td>
+</tr>
+<tr>
+  <td class="marquee-row">
+    <marquee scrollamount="3">&#9734; Bem-vindo ao Portal ATLAS &#9734; Sistema Administrativo v1.0 &#9734; Melhor visualizado em Internet Explorer 6 &#9734; {{ DOMAIN }} &#9734;</marquee>
+  </td>
+</tr>
+<tr>
+  <td>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+
+    {% if session.user %}
+    <td class="sidebar" valign="top">
+      <div class="menu-title">:: Menu ::</div>
+      <ul class="menu">
+        <li><a href="{{ url_for('dashboard.index') }}">&#9654; Dashboard</a></li>
+        <li><a href="{{ url_for('users.index') }}">&#9654; Usuarios</a></li>
+        <li><a href="{{ url_for('groups.index') }}">&#9654; Grupos</a></li>
+        <li><a href="{{ url_for('ous.index') }}">&#9654; OUs</a></li>
+        <li><a href="{{ url_for('gpo.index') }}">&#9654; GPOs</a></li>
+        <li><a href="{{ url_for('wallpaper.index') }}">&#9654; Papel de Parede</a></li>
+        <li><a href="{{ url_for('drives.index') }}">&#9654; Drives</a></li>
+        <li><a href="{{ url_for('vpn.index') }}">&#9654; VPN</a></li>
+        <li><a href="{{ url_for('shares.index') }}">&#9654; Pastas</a></li>
+        <li><a href="{{ url_for('ftp.index') }}">&#9654; FTP</a></li>
+        <li><a href="{{ url_for('db.index') }}">&#9654; Bancos</a></li>
+        <li><a href="{{ url_for('backup.index') }}">&#9654; Backup</a></li>
+        <li><a href="{{ url_for('monitoring.index') }}">&#9654; Monitoramento</a></li>
+        <li><a href="{{ url_for('helpdesk_deploy.index') }}">&#9654; Helpdesk (deploy)</a></li>
+        <li><a href="{{ url_for('rustdesk.index') }}">&#9654; RustDesk</a></li>
+        <li><a href="{{ url_for('docker.index') }}">&#9654; Docker</a></li>
+        <li><a href="{{ url_for('terminal.terminal') }}">&#9654; Terminal</a></li>
+      </ul>
+      <div class="visitors">
+        <br><div class="menu-title">:: Counter ::</div>
+        <div class="counter">0 0 0 0 4 2</div>
+        <div class="since">desde 1999</div>
+      </div>
+    </td>
+    {% endif %}
+
+    <td class="content" valign="top">
+
+      {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% for cat, m in msgs %}
+          <div class="flash flash-{{ cat }}">{{ m }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </td>
+
+    </tr></table>
+  </td>
+</tr>
+<tr>
+  <td class="footer">
+    &copy; 2005-2026 ATLAS Corp. &nbsp;|&nbsp; Todos os direitos reservados &nbsp;|&nbsp;
+    [ Best viewed in Internet Explorer 6.0 @ 1024x768 ]
+  </td>
+</tr>
+</table>
+
+</body>
+</html>

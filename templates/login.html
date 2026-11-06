@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+
+<div class="panel" style="max-width:400px; margin:40px auto;">
+  <div class="panel-title">:: Login no Portal ATLAS ::</div>
+  <div class="panel-body" style="text-align:center">
+    <div style="font-size:40px; letter-spacing:5px; margin:10px 0;">&#128274;</div>
+    <form method="post">
+      <table cellpadding="4">
+        <tr><td><b>Usuario:</b></td><td><input type="text" name="username" size="22" autofocus></td></tr>
+        <tr><td><b>Senha:</b></td><td><input type="password" name="password" size="22"></td></tr>
+        <tr><td colspan="2" align="center"><br>
+          <button type="submit" class="btn-3d">Entrar &raquo;</button>
+        </td></tr>
+      </table>
+    </form>
+    <br>
+    <small>Dica: use suas credenciais do dominio <b>{{ DOMAIN }}</b>.<br>Apenas membros de <b>PortalAdmins</b> ou <b>Domain Admins</b>.</small>
+  </div>
+</div>
+
+{% endblock %}

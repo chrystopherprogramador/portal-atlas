@@ -1,0 +1,70 @@
+groups:
+  - name: atlas-system
+    rules:
+      - alert: HighCPULoad
+        expr: avg_over_time(node_load5[10m]) / count without(cpu,mode)(node_cpu_seconds_total{mode="idle"}) > 1.5
+        for: 10m
+        labels: { severity: warning, component: system }
+        annotations:
+          summary: "CPU saturada em {{ $labels.instance }}"
+          description: "Load5 / nCPU > 1.5 por 10 minutos (valor atual: {{ $value | printf \"%.2f\" }})."
+
+      - alert: HighMemoryUsage
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.90
+        for: 15m
+        labels: { severity: warning, component: system }
+        annotations:
+          summary: "Memoria > 90% em {{ $labels.instance }}"
+          description: "Uso de memoria acima de 90% por 15 minutos ({{ $value | humanizePercentage }})."
+
+      - alert: DiskAlmostFull
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint!~"/boot.*"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint!~"/boot.*"}) < 0.10
+        for: 10m
+        labels: { severity: critical, component: disk }
+        annotations:
+          summary: "Disco < 10% em {{ $labels.mountpoint }}"
+          description: "Somente {{ $value | humanizePercentage }} livre em {{ $labels.mountpoint }} ({{ $labels.device }})."
+
+      - alert: DiskWillFill24h
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}[6h], 24*3600) < 0
+        for: 30m
+        labels: { severity: warning, component: disk }
+        annotations:
+          summary: "Disco {{ $labels.mountpoint }} enchera em 24h"
+          description: "Na taxa atual {{ $labels.mountpoint }} ficara cheio em menos de 24 horas."
+
+  - name: atlas-services
+    rules:
+      - alert: ServiceDown
+        expr: node_systemd_unit_state{name=~"samba-ad-dc.service|postgresql.service|portal-atlas.service|nginx.service|wg-quick@wg0.service",state="active"} == 0
+        for: 3m
+        labels: { severity: critical, component: service }
+        annotations:
+          summary: "Servico {{ $labels.name }} inativo"
+          description: "{{ $labels.name }} nao esta no estado active ha 3 minutos."
+
+      - alert: NodeExporterDown
+        expr: up{job="node"} == 0
+        for: 3m
+        labels: { severity: critical, component: monitoring }
+        annotations:
+          summary: "node_exporter offline"
+          description: "Prometheus nao consegue coletar metricas do node."
+
+  - name: atlas-backup
+    rules:
+      - alert: BackupStale
+        expr: (time() - atlas_backup_last_finish_timestamp) > 172800
+        for: 10m
+        labels: { severity: critical, component: backup }
+        annotations:
+          summary: "Backup atrasado (> 48h)"
+          description: "Ultimo backup bem-sucedido foi ha {{ $value | humanizeDuration }}."
+
+      - alert: BackupFailed
+        expr: atlas_backup_failed == 1
+        for: 5m
+        labels: { severity: critical, component: backup }
+        annotations:
+          summary: "Ultimo backup falhou"
+          description: "Execucao mais recente do atlas-backup terminou com erro."

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}VPN{% endblock %}
+{% block content %}
+<h1>:: VPN (WireGuard) ::</h1>
+
+<div class="panel" style="max-width:500px">
+<div class="panel-title">:: Novo peer ::</div>
+<div class="panel-body">
+  <form method="post" action="{{ url_for('vpn.new') }}">
+    <input name="name" size="30" placeholder="Ex: notebook-rh" required>
+    <button class="btn-3d" type="submit">Criar peer</button>
+  </form>
+</div>
+</div>
+
+<br>
+<div class="panel">
+<div class="panel-title">:: Peers ({{ peers|length }}) ::</div>
+<div class="panel-body">
+<table class="grid" width="100%">
+<tr class="th">
+  <th>Nome</th><th>IP</th><th>Endpoint</th><th>Handshake</th><th>Trafego</th><th>Acoes</th>
+</tr>
+{% for p in peers %}
+<tr>
+  <td><b>{{ p.name }}</b></td>
+  <td>{{ p.allowed_ips }}</td>
+  <td><small>{{ p.endpoint }}</small></td>
+  <td>
+    {% if p.latest_handshake and (p.latest_handshake >= (now() - 180)) %}
+      <span class="ok">&#9679; online</span>
+    {% else %}
+      <span>{{ fmt_handshake(p.latest_handshake) }}</span>
+    {% endif %}
+  </td>
+  <td><small>&darr; {{ fmt_bytes(p.rx_bytes) }} &uarr; {{ fmt_bytes(p.tx_bytes) }}</small></td>
+  <td>
+    <a class="btn-3d" href="{{ url_for('vpn.download_conf', name=p.name) }}">.conf</a>
+    <a class="btn-3d" target="_blank" href="{{ url_for('vpn.qr', name=p.name) }}">QR</a>
+    <form method="post" action="{{ url_for('vpn.delete', name=p.name) }}" style="display:inline"
+          onsubmit="return confirm('Revogar peer {{ p.name }}?');">
+      <button class="btn-3d bad" type="submit">revogar</button>
+    </form>
+  </td>
+</tr>
+{% endfor %}
+</table>
+</div>
+</div>
+{% endblock %}

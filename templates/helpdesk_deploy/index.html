@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block title %}Atualizacao do Helpdesk{% endblock %}
+{% block content %}
+<h1>:: Atualizacao do Helpdesk ::</h1>
+
+<p>Faca upload de um arquivo <code>.zip</code> com a nova versao. O sistema faz
+<b>backup automatico</b> da versao atual em <code>{{ state.BACKUP_ROOT or '/var/backups/atlas-portal/helpdesk/' }}</code>
+antes de substituir, e voce pode <b>restaurar</b> qualquer backup com 1 clique.</p>
+
+<table width="100%" cellpadding="0" cellspacing="0"><tr>
+
+<td valign="top" style="padding-right:8px;width:60%">
+
+<div class="panel">
+<div class="panel-title">:: Subir nova versao ::</div>
+<div class="panel-body">
+
+  <form id="deployForm" enctype="multipart/form-data">
+    <table cellpadding="4">
+      <tr>
+        <td><b>Arquivo .zip:</b></td>
+        <td><input type="file" name="zip" id="zipFile" accept=".zip,application/zip" required></td>
+      </tr>
+      <tr>
+        <td><b>Tag (opcional):</b></td>
+        <td><input name="tag" size="20" maxlength="40" placeholder="ex: v2.3.1">
+            <small>identificador curto para o backup</small></td>
+      </tr>
+      <tr>
+        <td colspan="2">
+          <button type="submit" id="btnDeploy" class="btn-3d">Enviar e aplicar</button>
+          &nbsp;<small>tamanho maximo: <b>2 GB</b></small>
+        </td>
+      </tr>
+    </table>
+  </form>
+
+  <div id="progressArea" style="display:none;margin-top:10px">
+    <b id="phaseLabel">Enviando arquivo...</b>
+    <div style="background:#000;border:2px inset #999;height:18px;margin:4px 0;position:relative">
+      <div id="upBar" style="background:#0066cc;height:100%;width:0%;transition:width .2s"></div>
+      <div id="upPct" style="position:absolute;top:0;left:0;right:0;text-align:center;color:#fff;font-weight:bold;font-size:11px;line-height:18px">0%</div>
+    </div>
+    <small id="upInfo">&nbsp;</small>
+  </div>
+
+  <div id="logArea" style="display:none;margin-top:10px">
+    <b>Log do servidor (tempo real):</b>
+    <pre id="logBox" style="background:#000;color:#0f0;font-family:'Courier New',monospace;font-size:11px;height:280px;overflow:auto;padding:6px;margin:4px 0;border:2px inset #555">aguardando...</pre>
+    <div id="logFooter"><small>&nbsp;</small></div>
+  </div>
+
+  <hr>
+  <small>
+    &raquo; O <b><code>config/database.php</code></b> NUNCA e substituido (preservado em deploys e rollbacks).<br>
+    &raquo; Lista de arquivos preservados: <code>/etc/portal-atlas/helpdesk-preserve.list</code><br>
+    &raquo; O zip pode ter os arquivos diretamente na raiz, ou dentro de uma pasta unica (sera achatada automaticamente).<br>
+    &raquo; Diretorio de destino: <code>{{ state.TARGET or '/var/www/helpdesk' }}</code><br>
+    &raquo; Owner aplicado: <code>www-data:www-data</code> (755 dirs / 644 arquivos).
+  </small>
+
+</div>
+</div>
+
+<br>
+
+<div class="panel">
+<div class="panel-title">:: Versoes salvas ({{ versions|length }}) ::</div>
+<div class="panel-body">
+{% if versions %}
+<table class="grid" width="100%">
+  <tr class="th">
+    <th>Stamp (data/hora)</th>
+    <th>Tamanho</th>
+    <th>Tag</th>
+    <th>Acoes</th>
+  </tr>
+  {% for v in versions %}
+  <tr>
+    <td><code>{{ v.STAMP }}</code></td>
+    <td align="right"><small>{{ v.SIZE }}</small></td>
+    <td><small>{{ v.META }}</small></td>
+    <td>
+      <button type="button" class="btn-3d" onclick="doRollback('{{ v.STAMP }}')">restaurar</button>
+      <form method="post" action="{{ url_for('helpdesk_deploy.delete_version') }}" style="display:inline"
+            onsubmit="return confirm('Apagar definitivamente o backup {{ v.STAMP }}?');">
+        <input type="hidden" name="stamp" value="{{ v.STAMP }}">
+        <button type="submit" class="btn-3d bad">apagar</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<form method="post" action="{{ url_for('helpdesk_deploy.purge') }}" style="margin-top:8px"
+      onsubmit="return confirm('Apagar todos os backups exceto os mais recentes?');">
+  <small>
+    Manter apenas os <input name="keep" type="number" min="1" max="200" value="10" size="3"> mais recentes
+    e <button type="submit" class="btn-3d">apagar o resto</button>
+  </small>
+</form>
+{% else %}
+<p><i>Nenhum backup salvo ainda. O primeiro deploy ja vai criar um.</i></p>
+{% endif %}
+</div>
+</div>
+
+</td>
+
+<td valign="top" style="width:40%">
+
+<div class="panel">
+<div class="panel-title">:: Estado atual ::</div>
+<div class="panel-body">
+<table cellpadding="3">
+  <tr><td><b>Diretorio:</b></td><td><code>{{ state.TARGET or '?' }}</code></td></tr>
+  <tr><td><b>Tamanho:</b></td><td>{{ state.SIZE or '?' }}</td></tr>
+  <tr><td><b>Arquivos:</b></td><td>{{ state.FILES or '?' }}</td></tr>
+  <tr><td><b>Versao:</b></td><td>{% if state.VERSION %}<code>{{ state.VERSION }}</code>{% else %}<i>(nao marcada)</i>{% endif %}</td></tr>
+  <tr><td><b>Backups:</b></td><td><code>{{ state.BACKUP_ROOT or '?' }}</code></td></tr>
+  <tr><td><b>Preservados:</b></td><td>{{ state.PRESERVE_ITEMS or '0' }} item(ns)</td></tr>
+</table>
+{% if state._error %}<p class="bad">erro: {{ state._error }}</p>{% endif %}
+</div>
+</div>
+
+<br>
+
+<div class="panel">
+<div class="panel-title">:: Como funciona ::</div>
+<div class="panel-body">
+<small>
+<ol style="margin:0;padding-left:18px">
+  <li>Voce escolhe um <code>.zip</code> com a nova versao do Helpdesk.</li>
+  <li>O portal valida o zip (testa CRC, bloqueia paths suspeitos).</li>
+  <li>O conteudo atual de <code>{{ state.TARGET or '/var/www/helpdesk/' }}</code> e copiado para
+      <code>{{ state.BACKUP_ROOT or '/var/backups/atlas-portal/helpdesk' }}/&lt;timestamp&gt;/</code>.</li>
+  <li>Os arquivos da <b>preserve.list</b> (incluindo <code>config/database.php</code>) sao copiados para um stash temporario.</li>
+  <li>O destino e limpo, o zip e descompactado nele e os arquivos preservados sao restaurados por cima.</li>
+  <li>Owner/permissoes sao reaplicados (<code>www-data</code>, 755/644).</li>
+</ol>
+<br>
+Para voltar uma versao, clique em <b>restaurar</b> ao lado do backup desejado &mdash; antes da restauracao,
+a versao atual tambem sera salva, permitindo desfazer.
+</small>
+</div>
+</div>
+
+<br>
+
+<div class="panel">
+<div class="panel-title">:: Atalho ::</div>
+<div class="panel-body" style="text-align:center">
+  <a href="http://{{ request.host.split(':')[0] }}/helpdesk/" target="_blank" class="btn-3d">abrir Helpdesk &raquo;</a>
+</div>
+</div>
+
+</td>
+
+</tr></table>
+
+<script>
+(function(){
+  var form = document.getElementById('deployForm');
+  var btn  = document.getElementById('btnDeploy');
+  var prog = document.getElementById('progressArea');
+  var bar  = document.getElementById('upBar');
+  var pct  = document.getElementById('upPct');
+  var info = document.getElementById('upInfo');
+  var phase= document.getElementById('phaseLabel');
+  var logArea = document.getElementById('logArea');
+  var logBox  = document.getElementById('logBox');
+  var logFoot = document.getElementById('logFooter');
+
+  function fmtBytes(b){
+    if(b<1024) return b+' B';
+    if(b<1024*1024) return (b/1024).toFixed(1)+' KB';
+    if(b<1024*1024*1024) return (b/(1024*1024)).toFixed(1)+' MB';
+    return (b/(1024*1024*1024)).toFixed(2)+' GB';
+  }
+
+  function setBar(p, color){
+    p = Math.max(0, Math.min(100, p));
+    bar.style.width = p.toFixed(1)+'%';
+    pct.textContent = p.toFixed(1)+'%';
+    if(color) bar.style.background = color;
+  }
+
+  function pollLog(jobid){
+    var offset = 0;
+    var t0 = Date.now();
+    phase.textContent = 'Aplicando no servidor...';
+    setBar(0, '#cc6600');
+    logArea.style.display = 'block';
+    logBox.textContent = '';
+    var lineCount = 0;
+
+    function tick(){
+      fetch('{{ url_for("helpdesk_deploy.deploy_status", jobid="JOBID") }}'.replace('JOBID', jobid)+'?offset='+offset, {cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j.error){
+          logBox.textContent += '\n[ERRO] '+j.error+'\n';
+          phase.innerHTML = '<span style="color:#900">FALHOU</span>';
+          btn.disabled = false;
+          return;
+        }
+        if(j.text){
+          logBox.textContent += j.text;
+          logBox.scrollTop = logBox.scrollHeight;
+          offset = j.offset;
+          lineCount = (logBox.textContent.match(/\n/g)||[]).length;
+        }
+        // estima progresso pelo numero de linhas (heuristica simples)
+        if(!j.done){
+          // animacao leve enquanto roda
+          var elapsed = (Date.now()-t0)/1000;
+          var fakePct = Math.min(95, 20 + elapsed*2 + lineCount*1.5);
+          setBar(fakePct, '#cc6600');
+          logFoot.innerHTML = '<small>tempo: '+elapsed.toFixed(0)+'s &nbsp;|&nbsp; linhas: '+lineCount+'</small>';
+          setTimeout(tick, 700);
+        } else {
+          if(j.rc === 0){
+            setBar(100, '#009900');
+            phase.innerHTML = '<span style="color:#060">Concluido com sucesso!</span>';
+            logFoot.innerHTML = '<small>recarregando pagina em 3s...</small>';
+            setTimeout(function(){ location.reload(); }, 3000);
+          } else {
+            setBar(100, '#990000');
+            phase.innerHTML = '<span style="color:#900">FALHOU (rc='+j.rc+')</span>';
+            btn.disabled = false;
+          }
+        }
+      })
+      .catch(function(e){
+        logBox.textContent += '\n[net] '+e+'\n';
+        setTimeout(tick, 2000);
+      });
+    }
+    tick();
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var fileEl = document.getElementById('zipFile');
+    if(!fileEl.files || !fileEl.files[0]){
+      alert('selecione um arquivo .zip'); return;
+    }
+    var f = fileEl.files[0];
+    if(f.size > {{ max_bytes }}){
+      alert('arquivo excede 2 GB'); return;
+    }
+
+    btn.disabled = true;
+    prog.style.display = 'block';
+    logArea.style.display = 'none';
+    logBox.textContent = '';
+    phase.textContent = 'Enviando arquivo...';
+    setBar(0, '#0066cc');
+    info.textContent = 'preparando...';
+
+    var fd = new FormData(form);
+    var xhr = new XMLHttpRequest();
+    var tStart = Date.now();
+
+    xhr.upload.onprogress = function(ev){
+      if(ev.lengthComputable){
+        var p = ev.loaded / ev.total * 100;
+        setBar(p, '#0066cc');
+        var dt = (Date.now()-tStart)/1000;
+        var rate = ev.loaded/Math.max(dt,0.1);
+        info.textContent = fmtBytes(ev.loaded)+' / '+fmtBytes(ev.total)+
+                           ' @ '+fmtBytes(rate)+'/s';
+      }
+    };
+    xhr.upload.onload = function(){
+      phase.textContent = 'Upload completo, validando zip...';
+      setBar(100, '#0066cc');
+    };
+    xhr.onload = function(){
+      if(xhr.status === 200){
+        try {
+          var j = JSON.parse(xhr.responseText);
+          if(j.job_id){
+            info.textContent = 'enviado: '+fmtBytes(j.size)+' (tag='+j.tag+')';
+            pollLog(j.job_id);
+          } else if(j.error){
+            phase.innerHTML = '<span style="color:#900">erro: '+j.error+'</span>';
+            btn.disabled = false;
+          }
+        } catch(e){
+          phase.innerHTML = '<span style="color:#900">resposta invalida do servidor</span>';
+          btn.disabled = false;
+        }
+      } else {
+        var msg = 'HTTP '+xhr.status;
+        try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e){}
+        phase.innerHTML = '<span style="color:#900">erro: '+msg+'</span>';
+        btn.disabled = false;
+      }
+    };
+    xhr.onerror = function(){
+      phase.innerHTML = '<span style="color:#900">erro de rede</span>';
+      btn.disabled = false;
+    };
+    xhr.open('POST', '{{ url_for("helpdesk_deploy.deploy") }}');
+    xhr.send(fd);
+  });
+
+  window.doRollback = function(stamp){
+    if(!confirm('Restaurar a versao '+stamp+'?\n\nA versao atual sera salva como backup antes.')) return;
+    btn.disabled = true;
+    prog.style.display = 'block';
+    phase.textContent = 'Iniciando rollback...';
+    setBar(0, '#cc6600');
+    info.textContent = 'stamp='+stamp;
+
+    var fd = new FormData();
+    fd.append('stamp', stamp);
+    fetch('{{ url_for("helpdesk_deploy.rollback") }}', {method:'POST', body:fd})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j.job_id){ pollLog(j.job_id); }
+        else { alert(j.error||'erro'); btn.disabled=false; }
+      })
+      .catch(function(e){ alert('erro: '+e); btn.disabled=false; });
+  };
+})();
+</script>
+
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}GPOs{% endblock %}
+{% block content %}
+<h1>:: GPOs ::</h1>
+
+<div class="panel" style="max-width:500px">
+<div class="panel-title">:: Nova GPO ::</div>
+<div class="panel-body">
+  <form method="post" action="{{ url_for('gpo.new') }}">
+    <input name="name" size="30" placeholder="Ex: AutoSetup-VPN" required>
+    <button class="btn-3d" type="submit">Criar</button>
+  </form>
+  <br><small>* Criar GPO aqui eh apenas o container. Para editar politicas use o GPMC (gpmc.msc) no Windows via RSAT.</small>
+</div>
+</div>
+
+<br>
+<div class="panel">
+<div class="panel-title">:: Existentes ({{ gpos|length }}) ::</div>
+<div class="panel-body">
+<table class="grid" width="100%" border="1" cellpadding="4" cellspacing="0">
+  <tr bgcolor="#000080" style="color:white">
+    <th>Nome</th><th>GUID</th><th width="80">&nbsp;</th>
+  </tr>
+  {% for g in gpos %}
+  <tr>
+    <td>{{ g.get('display name','?') }}</td>
+    <td><small><code>{{ g.get('GPO','-') }}</code></small></td>
+    <td align="center">
+      {% if g.get('GPO') %}
+        <a class="btn-3d" href="{{ url_for('gpo.show', guid=g.get('GPO')) }}">gerenciar</a>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+</div>
+{% endblock %}

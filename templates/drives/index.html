@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Mapeamento de Drives (GPO){% endblock %}
+{% block content %}
+
+<h1>:: Mapeamento de Drives ::</h1>
+
+<p><i>GPO unica que mapeia letras de rede por grupo. Cada drive so aparece para
+quem pertence ao grupo configurado. O grupo <b>TI</b> (definido abaixo) recebe
+<b>todos</b> os drives automaticamente.</i></p>
+
+{% if not state or not state.GPO_GUID %}
+<div class="panel" style="max-width:640px">
+  <div class="panel-title">:: GPO ainda nao foi criada ::</div>
+  <div class="panel-body">
+    <form method="post" action="{{ url_for('drives.init_route') }}">
+      <p>Cria a GPO <code>Atlas - Mapeamento de Drives</code> e linka na raiz do dominio.</p>
+      <button type="submit" class="btn-3d">Inicializar GPO de drives</button>
+    </form>
+  </div>
+</div>
+{% else %}
+
+<table width="100%" cellpadding="0" cellspacing="8"><tr>
+
+<td valign="top" width="68%">
+
+<form method="post" action="{{ url_for('drives.save_route') }}">
+<div class="panel">
+  <div class="panel-title">:: Configuracao geral ::</div>
+  <div class="panel-body">
+    <table cellpadding="3">
+      <tr>
+        <td><b>Grupo "TI" (super-acesso):</b></td>
+        <td>
+          <input list="grouplist" name="ti_group" value="{{ cfg.ti_group or 'TI' }}"
+                 size="24" placeholder="ex: TI">
+          <small>&nbsp;&laquo; recebe TODOS os drives</small>
+        </td>
+      </tr>
+      <tr>
+        <td><b>Dominio NetBIOS:</b></td>
+        <td>
+          <input name="domain" value="{{ cfg.domain or 'TEXASCO' }}" size="16">
+        </td>
+      </tr>
+      <tr><td colspan="2">
+        <button type="submit" class="btn-3d">salvar configuracao</button>
+      </td></tr>
+    </table>
+  </div>
+</div>
+</form>
+
+<br>
+
+<div class="panel">
+  <div class="panel-title">:: Mapeamentos ativos ::</div>
+  <div class="panel-body">
+    <table border="1" cellpadding="4" cellspacing="0" width="100%" class="grid">
+      <tr bgcolor="#000080" style="color:white">
+        <th width="60">Letra</th>
+        <th>Caminho UNC</th>
+        <th width="140">Rotulo</th>
+        <th>Grupos (separar por virgula)</th>
+        <th width="160">Acoes</th>
+      </tr>
+
+      {% set mlist = cfg.mappings or [] %}
+      {% if not mlist and not suggestions %}
+        <tr><td colspan="5" align="center"><i>(nenhum mapeamento configurado)</i></td></tr>
+      {% endif %}
+
+      {# === Mapeamentos ja existentes - 1 form por linha === #}
+      {% for m in mlist %}
+      <tr>
+        <form method="post" action="{{ url_for('drives.row_save') }}" id="rowform-{{ m.letter }}"></form>
+        <td align="center">
+          <select name="letter" form="rowform-{{ m.letter }}">
+            {% for L in letters %}
+              <option value="{{ L }}" {% if m.letter == L %}selected{% endif %}>{{ L }}:</option>
+            {% endfor %}
+          </select>
+          <input type="hidden" name="original_letter" value="{{ m.letter }}" form="rowform-{{ m.letter }}">
+        </td>
+        <td><input name="unc"    form="rowform-{{ m.letter }}" value="{{ m.unc }}" size="38"></td>
+        <td><input name="label"  form="rowform-{{ m.letter }}" value="{{ m.label }}" size="14"></td>
+        <td><input name="groups" form="rowform-{{ m.letter }}" value="{{ m.groups|join(', ') }}"
+                                 size="40" list="grouplist"></td>
+        <td align="center">
+          <button type="submit" form="rowform-{{ m.letter }}" class="btn-3d">salvar e aplicar</button>
+          <form method="post" action="{{ url_for('drives.row_delete') }}" style="display:inline"
+                onsubmit="return confirm('Remover o mapeamento {{ m.letter }}: -> {{ m.unc }}?');">
+            <input type="hidden" name="letter" value="{{ m.letter }}">
+            <button type="submit" class="btn-3d bad">x</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+
+      {# === Sugestoes a partir de shares ja existentes === #}
+      {% for sug in suggestions %}
+      <tr style="background:#f0f8ff">
+        <form method="post" action="{{ url_for('drives.row_save') }}" id="sugform-{{ loop.index0 }}"></form>
+        <td align="center">
+          <select name="letter" form="sugform-{{ loop.index0 }}">
+            {% for L in letters %}<option value="{{ L }}" {% if L == sug.default_letter %}selected{% endif %}>{{ L }}:</option>{% endfor %}
+          </select>
+        </td>
+        <td><input name="unc"    form="sugform-{{ loop.index0 }}" value="{{ sug.unc }}" size="38"></td>
+        <td><input name="label"  form="sugform-{{ loop.index0 }}" value="{{ sug.label }}" size="14"></td>
+        <td><input name="groups" form="sugform-{{ loop.index0 }}" value="{{ sug.suggested_group }}"
+                                 size="40" list="grouplist"></td>
+        <td align="center">
+          <button type="submit" form="sugform-{{ loop.index0 }}" class="btn-3d">+ adicionar</button>
+        </td>
+      </tr>
+      {% endfor %}
+
+      {# === Linha livre === #}
+      <tr style="background:#f8f8e0">
+        <form method="post" action="{{ url_for('drives.row_save') }}" id="freeform"></form>
+        <td align="center">
+          <select name="letter" form="freeform">
+            {% for L in letters %}<option value="{{ L }}" {% if L == free_default %}selected{% endif %}>{{ L }}:</option>{% endfor %}
+          </select>
+        </td>
+        <td><input name="unc"    form="freeform" placeholder="\\atlas\NomeDoShare" size="38"></td>
+        <td><input name="label"  form="freeform" placeholder="rotulo" size="14"></td>
+        <td><input name="groups" form="freeform" placeholder="Grupo1, Grupo2" size="40" list="grouplist"></td>
+        <td align="center">
+          <button type="submit" form="freeform" class="btn-3d">+ adicionar</button>
+        </td>
+      </tr>
+
+    </table>
+
+    <datalist id="grouplist">
+      {% for g in groups %}<option value="{{ g }}">{% endfor %}
+    </datalist>
+
+    <p><small>
+    Cada linha tem seu proprio botao <b>salvar e aplicar</b>. Clientes recebem
+    no proximo logon ou apos <code>gpupdate /force</code> + logoff.
+    </small></p>
+  </div>
+</div>
+
+</td>
+
+<td valign="top" width="32%">
+
+<div class="panel">
+  <div class="panel-title">:: Estado ::</div>
+  <div class="panel-body">
+    <table cellpadding="3">
+      <tr><td><b>GPO:</b></td><td><small>{{ state.GPO_NAME }}</small></td></tr>
+      <tr><td><b>GUID:</b></td><td><small><code>{{ state.GPO_GUID }}</code></small></td></tr>
+      <tr><td><b>Linkada:</b></td><td>
+        {% if state.LINKED == '1' %}<b class="ok">&#9679; sim</b>
+        {% else %}<b class="bad">&#9679; nao</b>{% endif %}</td></tr>
+      <tr><td><b>Versao GPT:</b></td><td>{{ state.GPT_VERSION or 0 }}</td></tr>
+      <tr><td><b>Drives.xml:</b></td><td>
+        {% if state.XML_EXISTS == '1' %}<b class="ok">{{ state.XML_SIZE }} bytes</b>
+        {% else %}<b class="bad">ausente</b>{% endif %}</td></tr>
+      <tr><td><b>Total maps:</b></td><td>{{ (cfg.mappings or [])|length }}</td></tr>
+    </table>
+  </div>
+</div>
+
+<br>
+
+<div class="panel">
+  <div class="panel-title">:: Como funciona ::</div>
+  <div class="panel-body">
+    <small>
+    &raquo; A GPO usa <b>Group Policy Preferences &gt; Drive Maps</b> com
+    <b>Item-Level Targeting</b> por grupo de seguranca.<br><br>
+    &raquo; Para cada mapeamento, sao adicionados os grupos listados como
+    <i>OR</i> (qualquer um deles) e o grupo TI tambem (sempre).<br><br>
+    &raquo; Drives <b>persistentes</b> (action=Update): se ja existir, a letra
+    e atualizada; se nao, e criada. Sumir do escopo = drive removido apenas
+    via logoff/gpupdate.<br><br>
+    &raquo; Linhas em <span style="background:#f0f8ff">azul</span> sao
+    <i>sugestoes</i> a partir dos shares existentes que voce ainda nao
+    mapeou. Marque a checkbox e clique em SALVAR para incluir.</small>
+  </div>
+</div>
+
+<br>
+
+<div class="panel">
+  <div class="panel-title">:: Avancado ::</div>
+  <div class="panel-body">
+    <form method="post" action="{{ url_for('drives.init_route') }}" style="display:inline">
+      <button type="submit" class="btn-3d">re-aplicar GPO</button>
+    </form>
+    <form method="post" action="{{ url_for('drives.disable_route') }}" style="display:inline"
+          onsubmit="return confirm('Remover o link da GPO de drives no dominio?');">
+      <button type="submit" class="btn-3d bad">desabilitar</button>
+    </form>
+  </div>
+</div>
+
+</td></tr></table>
+
+{% endif %}
+
+{% endblock %}

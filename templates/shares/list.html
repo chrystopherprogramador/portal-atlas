@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Pastas compartilhadas{% endblock %}
+{% block content %}
+<h1>:: Pastas Compartilhadas ::</h1>
+
+<div class="panel" style="max-width:700px">
+<div class="panel-title">:: Nova pasta ::</div>
+<div class="panel-body">
+  <form method="post" action="{{ url_for('shares.new') }}">
+    <table cellpadding="4">
+      <tr><td><b>Nome:</b></td><td><input name="name" size="25" maxlength="32" required> <small>(sem espacos, ex: Financeiro)</small></td></tr>
+      <tr><td><b>Grupo AD:</b></td><td>
+        <select name="group" required>
+          {% for g in groups %}<option>{{ g }}</option>{% endfor %}
+        </select>
+        <small>(apenas este grupo + Domain Admins tera acesso)</small>
+      </td></tr>
+      <tr><td><b>Descricao:</b></td><td><input name="description" size="50"></td></tr>
+      <tr><td colspan="2"><br><button type="submit" class="btn-3d">Criar compartilhamento</button></td></tr>
+    </table>
+  </form>
+  <br><small>* A pasta sera criada em <code>/srv/samba/shares/&lt;nome&gt;</code>.<br>
+  * Acesso via <code>\\atlas\&lt;nome&gt;</code>.</small>
+</div>
+</div>
+
+<br>
+<div class="panel">
+<div class="panel-title">:: Shares existentes ({{ shares|length }}) ::</div>
+<div class="panel-body">
+<table class="grid" width="100%">
+  <tr class="th">
+    <th>Nome</th>
+    <th>Caminho</th>
+    <th>Grupos com acesso</th>
+    <th>Acoes</th>
+  </tr>
+  {% for s in shares %}
+  <tr>
+    <td>
+      <b>{{ s.name }}</b>
+      {% if s.system %} <small>(sistema)</small>
+      {% elif s.managed %} <small style="color:#080">&#9679; portal</small>
+      {% else %} <small style="color:#a60">&#9679; manual</small>
+      {% endif %}
+      {% if s.comment and s.comment != '-' %}<br><small>{{ s.comment }}</small>{% endif %}
+    </td>
+    <td><code>{{ s.path }}</code></td>
+    <td><small>{{ s.valid_users }}</small></td>
+    <td>
+      {% if s.managed and not s.system %}
+        <form method="post" action="{{ url_for('shares.setgroup', name=s.name) }}" style="display:inline">
+          <select name="group">
+            {% for g in groups %}<option>{{ g }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="btn-3d">trocar grupo</button>
+        </form>
+        <form method="post" action="{{ url_for('shares.delete', name=s.name) }}" style="display:inline"
+              onsubmit="return confirm('Remover share {{ s.name }}? Os dados serao preservados em .removed.*');">
+          <button type="submit" class="btn-3d bad">remover</button>
+        </form>
+      {% else %}
+        <small>-</small>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+</div>
+{% endblock %}

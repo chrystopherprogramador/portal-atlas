@@ -1,0 +1,24 @@
+[Unit]
+Description=ATLAS Backup (Borg)
+Documentation=file:/usr/local/sbin/atlas-backup.sh
+After=network-online.target postgresql.service samba-ad-dc.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# Execucao bloqueante (nao detach) -- o timer ja controla
+ExecStart=/usr/local/sbin/atlas-backup.sh run
+StandardOutput=append:/var/log/atlas-backup.log
+StandardError=append:/var/log/atlas-backup.log
+# Limites de seguranca
+ProtectSystem=false
+PrivateTmp=no
+TimeoutStartSec=6h
+
+[Install]
+WantedBy=multi-user.target

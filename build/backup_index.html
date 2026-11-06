@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+{% block title %}Backup{% endblock %}
+{% block content %}
+
+<h1>:: Backup (Borg) ::</h1>
+
+<!-- ===== STATUS GERAL ===== -->
+<div class="panel">
+  <div class="panel-title">:: Status atual ::</div>
+  <div class="panel-body">
+    <table width="100%"><tr>
+
+      <td valign="top" width="35%">
+        <table cellpadding="4">
+          <tr><td><b>Estado:</b></td>
+              <td><span class="badge badge-{{ st.status_color }}">{{ st.status_label|upper }}</span></td></tr>
+          <tr><td><b>Ultima execucao:</b></td>
+              <td>{{ st.last.finished or '--' }}<br><small>ha {{ st.age_label }}</small></td></tr>
+          <tr><td><b>Duracao:</b></td>
+              <td>{% if st.last.duration_sec %}{{ st.last.duration_sec }}s{% else %}--{% endif %}</td></tr>
+          <tr><td><b>Archive:</b></td>
+              <td><code>{{ st.last.archive or '--' }}</code></td></tr>
+          <tr><td><b>Erro:</b></td>
+              <td>{% if st.last.error %}<span class="bad">{{ st.last.error }}</span>{% else %}--{% endif %}</td></tr>
+          <tr><td><b>Proxima:</b></td>
+              <td>
+                {% if schedule and schedule.hour is not none %}
+                  <b>{{ "%02d"|format(schedule.hour) }}:{{ "%02d"|format(schedule.minute) }}</b> (local, diario)
+                {% else %}
+                  <small><i>timer systemd padrao</i></small>
+                {% endif %}
+              </td></tr>
+        </table>
+      </td>
+
+      <td valign="top" width="35%">
+        {% set s = st.last.stats %}
+        {% if s %}
+        <table cellpadding="4">
+          <tr><td><b>Arquivos:</b></td>  <td>{{ "{:,}".format(s.nfiles or 0) }}</td></tr>
+          <tr><td><b>Tamanho original:</b></td>  <td>{{ fmt_bytes(s.original_size or 0) }}</td></tr>
+          <tr><td><b>Comprimido:</b></td>        <td>{{ fmt_bytes(s.compressed_size or 0) }}</td></tr>
+          <tr><td><b>Novo no repo (dedup):</b></td><td><b>{{ fmt_bytes(s.deduplicated_size or 0) }}</b></td></tr>
+          <tr><td colspan="2"><hr></td></tr>
+          <tr><td><b>Repo total:</b></td>        <td>{{ fmt_bytes(s.repo_total_size or 0) }}</td></tr>
+          <tr><td><b>Repo comprimido:</b></td>   <td>{{ fmt_bytes(s.repo_total_csize or 0) }}</td></tr>
+          <tr><td><b>Repo unico (real):</b></td> <td><b>{{ fmt_bytes(s.repo_unique_csize or 0) }}</b></td></tr>
+          <tr><td><b>Chunks unicos:</b></td>     <td>{{ "{:,}".format(s.repo_total_unique_chunks or 0) }}</td></tr>
+        </table>
+        {% else %}
+          <i>(sem estatisticas -- rode o primeiro backup)</i>
+        {% endif %}
+      </td>
+
+      <td valign="top" width="30%">
+        <form method="post" action="{{ url_for('backup.run') }}"
+              onsubmit="return confirm('Iniciar backup agora? Sera executado em background.');">
+          <button class="btn-3d" type="submit"
+                  {% if st.running %}disabled{% endif %}>
+            {% if st.running %}&#9201; em execucao...{% else %}&#9654; Rodar backup AGORA{% endif %}
+          </button>
+        </form>
+        <br>
+        <form method="post" action="{{ url_for('backup.check') }}"
+              onsubmit="return confirm('Iniciar borg check? Pode demorar varios minutos.');">
+          <button class="btn-3d" type="submit">&#10003; Verificar integridade</button>
+        </form>
+        <br><br>
+        <small>
+          <i>* Backup roda em background.<br>
+             * Esta pagina se atualiza a cada 10s.<br>
+             * GFS: 7 diarios + 4 semanais +<br>
+             &nbsp;&nbsp;12 mensais + 3 anuais</i>
+        </small>
+      </td>
+
+    </tr></table>
+  </div>
+</div>
+
+<br>
+
+<!-- ===== PROGRESS BAR / LIVE LOG ===== -->
+<div class="panel" id="live-panel" {% if not st.running %}style="display:none"{% endif %}>
+  <div class="panel-title">:: Progresso em tempo real ::</div>
+  <div class="panel-body">
+    <table width="100%"><tr>
+      <td width="70%">
+        <div style="font-family:monospace;font-size:12px;margin-bottom:4px">
+          <b>Fase:</b> <span id="prog-phase">{{ prog.phase or '--' }}</span>
+          &nbsp;&nbsp;<b>Detalhe:</b> <span id="prog-detail">{{ prog.detail or '--' }}</span>
+        </div>
+        <!-- barra de progresso retro -->
+        <div style="border:2px inset #888;background:#222;height:24px;position:relative;overflow:hidden">
+          <div id="prog-bar" style="height:100%;background:linear-gradient(90deg,#0a0,#3f3);width:{{ prog.percent or 0 }}%;transition:width 0.5s"></div>
+          <div id="prog-pct" style="position:absolute;top:0;left:0;right:0;text-align:center;line-height:24px;color:#fff;font-family:monospace;font-weight:bold;text-shadow:1px 1px 2px #000">{{ prog.percent or 0 }}%</div>
+        </div>
+      </td>
+      <td width="30%" align="right" valign="top">
+        <small>
+          <b>Estado:</b> <span id="prog-state" class="badge badge-{{ 'blue' if st.running else 'grey' }}">{{ 'EM EXECUCAO' if st.running else 'OCIOSO' }}</span><br>
+          <i>atualizando a cada 2s...</i>
+        </small>
+      </td>
+    </tr></table>
+    <br>
+    <div style="font-family:monospace;font-size:11px;margin-bottom:2px"><b>Log ao vivo (/var/log/atlas-backup.log):</b></div>
+    <div id="live-log" style="background:#000;color:#0f0;padding:8px;font-family:'Courier New',monospace;font-size:11px;height:280px;overflow:auto;border:2px inset #666;white-space:pre-wrap">{% for l in prog.log or [] %}{{ l }}
+{% endfor %}</div>
+  </div>
+</div>
+
+<br>
+
+<!-- ===== LISTA DE ARCHIVES ===== -->
+<div class="panel">
+  <div class="panel-title">:: Archives no repo ({{ archives|length }}) ::</div>
+  <div class="panel-body">
+    {% if archives %}
+    <table width="100%" class="grid">
+      <tr class="th">
+        <th align="left">Nome</th>
+        <th align="left">Hostname</th>
+        <th align="left">Inicio</th>
+        <th align="right">ID</th>
+      </tr>
+      {% for a in archives|reverse %}
+      <tr>
+        <td><code>{{ a.name }}</code></td>
+        <td><small>{{ a.hostname or '-' }}</small></td>
+        <td><small>{{ a.start or a.time or '-' }}</small></td>
+        <td align="right"><small><code>{{ (a.id or '')[:12] }}</code></small></td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+      <p><i>(nenhum archive -- clique em "Rodar backup AGORA")</i></p>
+    {% endif %}
+  </div>
+</div>
+
+<br>
+
+<!-- ===== REPO INFO ===== -->
+<table width="100%"><tr>
+<td valign="top" width="50%">
+  <div class="panel">
+    <div class="panel-title">:: Repositorio ::</div>
+    <div class="panel-body">
+      <table cellpadding="3">
+        <tr><td><b>Path:</b></td>        <td><code>/var/backups/atlas-local</code></td></tr>
+        <tr><td><b>Cifrado:</b></td>     <td>repokey-blake2 (chave + senha)</td></tr>
+        <tr><td><b>Compressao:</b></td>  <td>zstd level 6</td></tr>
+        <tr><td><b>Retencao:</b></td>    <td>GFS (7d / 4s / 12m / 3a)</td></tr>
+        <tr><td><b>Chave backup:</b></td><td><code>/etc/atlas-backup/key-backup.txt</code></td></tr>
+        <tr><td><b>Passphrase:</b></td>  <td><code>/etc/atlas-backup/env</code></td></tr>
+      </table>
+      <hr>
+      <b>&#9201; Agendamento diario</b>
+      <form id="schedule-form" onsubmit="return setSchedule(event)" style="margin-top:6px">
+        <table cellpadding="3">
+          <tr>
+            <td><b>Horario (local):</b></td>
+            <td>
+              <input type="time" name="time" id="sched-time"
+                value="{% if schedule and schedule.hour is not none %}{{ '%02d'|format(schedule.hour) }}:{{ '%02d'|format(schedule.minute) }}{% else %}01:30{% endif %}"
+                required style="width:110px">
+              <button type="submit" class="btn" id="sched-btn">Salvar</button>
+              <span id="sched-msg" style="margin-left:8px;font-family:monospace;font-size:11px"></span>
+            </td>
+          </tr>
+        </table>
+        <small>Proxima execucao: <code id="sched-next">{{ schedule.oncalendar or 'padrao' }}</code></small>
+      </form>
+    </div>
+  </div>
+</td>
+<td valign="top" width="50%">
+  <div class="panel">
+    <div class="panel-title">:: Replicacao remota (NAS) ::</div>
+    <div class="panel-body">
+      <p><b>Status:</b>
+        {% if remote and remote.configured %}
+          <span class="badge badge-green">CONFIGURADO</span>
+          <button type="button" class="btn" onclick="testRemote()" style="float:right">Testar conexao</button>
+        {% else %}
+          <span class="badge badge-red">NAO CONFIGURADO</span>
+        {% endif %}
+      </p>
+
+      {% if remote and remote.configured %}
+        <p><small><b>Repositorio:</b> <code>{{ remote.remote_repo }}</code><br>
+        A replicacao roda junto com o backup local. Use <b>Testar conexao</b> para validar.</small></p>
+        <div id="setup-log" style="display:none;margin-top:10px;background:#000;color:#0f0;padding:8px;font-family:monospace;font-size:11px;max-height:200px;overflow:auto;border:1px inset #666"></div>
+      {% else %}
+        <hr>
+        <p><b>Preparar NAS automaticamente via SSH</b></p>
+        <p><small>Digite credenciais de um usuario com <b>sudo</b> no NAS Debian. O portal instala borg,
+        cria usuario dedicado, prepara diretorio, instala chave SSH restrita (<b>--append-only</b>)
+        e inicializa o repo. <b>A senha NAO e armazenada.</b></small></p>
+        <form id="setup-form" onsubmit="return setupRemote(event)">
+          <table cellpadding="3" width="100%">
+            <tr>
+              <td width="28%"><b>Host / IP:</b></td>
+              <td><input type="text" name="host" required style="width:95%" placeholder="172.16.3.200"></td>
+            </tr>
+            <tr>
+              <td><b>Porta SSH:</b></td>
+              <td><input type="number" name="port" value="22" style="width:80px"></td>
+            </tr>
+            <tr>
+              <td><b>Admin (sudo):</b></td>
+              <td><input type="text" name="admin_user" value="admin" required style="width:95%"></td>
+            </tr>
+            <tr>
+              <td><b>Senha admin:</b></td>
+              <td><input type="password" name="admin_pass" required style="width:95%" autocomplete="new-password"></td>
+            </tr>
+            <tr>
+              <td><b>Usuario Borg:</b></td>
+              <td><input type="text" name="remote_user" value="backup" required style="width:95%"></td>
+            </tr>
+            <tr>
+              <td><b>Caminho repo:</b></td>
+              <td><input type="text" name="remote_path" value="/srv/borg/atlas" required style="width:95%"></td>
+            </tr>
+            <tr>
+              <td colspan="2" align="right">
+                <button type="submit" class="btn btn-ok" id="setup-btn">&raquo; Preparar NAS agora</button>
+              </td>
+            </tr>
+          </table>
+        </form>
+        <div id="setup-log" style="display:none;margin-top:10px;background:#000;color:#0f0;padding:8px;font-family:monospace;font-size:11px;max-height:240px;overflow:auto;border:1px inset #666"></div>
+      {% endif %}
+    </div>
+  </div>
+</td>
+</tr></table>
+
+<br>
+<small><center><i>ATLAS Backup System -- Borg + GFS -- criptografia de ponta a ponta</i></center></small>
+
+<script>
+// ============ Live progress polling ============
+// Se backup rodando -> poll a cada 2s; ocioso -> 15s
+var POLL_RUNNING = 2000, POLL_IDLE = 15000;
+var lastRunning = {{ 'true' if st.running else 'false' }};
+var lastFinished = "{{ st.last.finished or '' }}";
+
+function pollProgress(){
+  fetch('{{ url_for("backup.api_progress") }}', {credentials:'same-origin', cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var panel = document.getElementById('live-panel');
+      var bar   = document.getElementById('prog-bar');
+      var pct   = document.getElementById('prog-pct');
+      var ph    = document.getElementById('prog-phase');
+      var dt    = document.getElementById('prog-detail');
+      var stspan= document.getElementById('prog-state');
+      var logEl = document.getElementById('live-log');
+
+      // mostra painel se esta rodando OU se tem progresso recente
+      if(d.running || (d.percent > 0 && d.percent < 100)){
+        panel.style.display = '';
+      }
+      if(bar){ bar.style.width = (d.percent||0) + '%'; }
+      if(pct){ pct.textContent = (d.percent||0) + '%'; }
+      if(ph){  ph.textContent = d.phase || '--'; }
+      if(dt){  dt.textContent = d.detail || '--'; }
+      if(stspan){
+        stspan.className = 'badge badge-' + (d.running ? 'blue' : (d.percent>=100 ? 'green' : 'grey'));
+        stspan.textContent = d.running ? 'EM EXECUCAO' : (d.percent>=100 ? 'CONCLUIDO' : 'OCIOSO');
+      }
+      if(logEl && d.log){
+        var wasAtBottom = (logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 10);
+        logEl.textContent = d.log.join('\n');
+        if(wasAtBottom) logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      // detecta transicao running->idle ou novo archive -> reload para atualizar stats/lista
+      if(lastRunning && !d.running){
+        setTimeout(function(){ location.reload(); }, 1500);
+      }
+      lastRunning = d.running;
+
+      // reagenda
+      setTimeout(pollProgress, d.running ? POLL_RUNNING : POLL_IDLE);
+    })
+    .catch(function(){
+      setTimeout(pollProgress, POLL_IDLE);
+    });
+}
+pollProgress();
+
+// tambem detecta novo finished via /api/status quando ocioso
+setInterval(function(){
+  fetch('{{ url_for("backup.api_status") }}', {credentials:'same-origin', cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.last && d.last.finished && d.last.finished !== lastFinished && lastFinished){
+        location.reload();
+      }
+    }).catch(function(){});
+}, 30000);
+
+// ============ Schedule ============
+function setSchedule(ev){
+  ev.preventDefault();
+  var t = document.getElementById('sched-time').value;
+  var btn = document.getElementById('sched-btn');
+  var msg = document.getElementById('sched-msg');
+  btn.disabled = true; msg.textContent = 'salvando...'; msg.style.color = '#888';
+  var fd = new FormData(); fd.append('time', t);
+  fetch('{{ url_for("backup.set_schedule") }}', {method:'POST', credentials:'same-origin', body: fd})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      btn.disabled = false;
+      if(d.ok){
+        msg.textContent = 'OK - timer reiniciado';
+        msg.style.color = '#080';
+        var nx = document.getElementById('sched-next');
+        if(nx && d.result && d.result.oncalendar) nx.textContent = d.result.oncalendar;
+      } else {
+        msg.textContent = 'FALHA: ' + (d.result||'erro');
+        msg.style.color = '#c00';
+      }
+    })
+    .catch(function(e){
+      btn.disabled = false;
+      msg.textContent = 'ERRO: ' + e; msg.style.color = '#c00';
+    });
+  return false;
+}
+
+// ============ Setup NAS via SSH ============
+function setupRemote(ev){
+  ev.preventDefault();
+  var f = document.getElementById('setup-form');
+  var btn = document.getElementById('setup-btn');
+  var logDiv = document.getElementById('setup-log');
+  logDiv.style.display = 'block';
+  logDiv.innerHTML = '<b>Conectando ao NAS, aguarde... (pode levar 1-2 minutos na primeira vez)</b>\n';
+  btn.disabled = true;
+  btn.innerHTML = '... aguardando NAS ...';
+  var data = new FormData(f);
+  fetch('{{ url_for("backup.setup_remote") }}', {
+    method:'POST', credentials:'same-origin', body: data
+  }).then(function(r){ return r.json(); })
+    .then(function(d){
+      logDiv.innerHTML = '';
+      (d.log || []).forEach(function(line){
+        var span = document.createElement('div');
+        span.textContent = line;
+        if(/ERRO/i.test(line)) span.style.color = '#f55';
+        else if(/SUCESSO|ok$|pronto/i.test(line)) span.style.color = '#5f5';
+        logDiv.appendChild(span);
+      });
+      logDiv.scrollTop = logDiv.scrollHeight;
+      btn.disabled = false;
+      btn.innerHTML = '&raquo; Preparar NAS agora';
+      if(d.ok){
+        setTimeout(function(){ location.reload(); }, 2500);
+      }
+    })
+    .catch(function(e){
+      logDiv.innerHTML += '\nERRO de rede: ' + e;
+      btn.disabled = false;
+      btn.innerHTML = '&raquo; Tentar novamente';
+    });
+  return false;
+}
+
+function testRemote(){
+  var logDiv = document.getElementById('setup-log');
+  logDiv.style.display = 'block';
+  logDiv.innerHTML = 'Testando conexao SSH + borg info remoto...\n';
+  fetch('{{ url_for("backup.test_remote") }}', {method:'POST', credentials:'same-origin'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var color = d.ok ? '#5f5' : '#f55';
+      logDiv.innerHTML += '<span style="color:'+color+'">' + (d.ok?'[OK] ':'[FAIL] ') + (d.message||'') + '</span>';
+    })
+    .catch(function(e){ logDiv.innerHTML += '<span style="color:#f55">[ERRO] ' + e + '</span>'; });
+}
+</script>
+
+{% endblock %}
